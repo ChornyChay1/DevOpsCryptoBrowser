@@ -4,6 +4,7 @@ from core.db import Base
 class IndicatorDB(Base):
     __tablename__ = "indicators"
 
-    id = Column(String, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String, nullable=False)
+    type = Column(String, nullable=False)
     period = Column(Integer, nullable=False)

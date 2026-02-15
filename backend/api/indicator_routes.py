@@ -13,21 +13,19 @@ router = APIRouter()
 
 @router.post("/indicator")
 async def create_indicator(ind: IndicatorCreate):
-    ind_id = str(uuid.uuid4())
-
-    db_ind = IndicatorDB(id=ind_id, name=ind.name, period=ind.period)
+    db_ind = IndicatorDB(name=ind.name, type=ind.type, period=ind.period)
 
     async with SessionLocal() as session:
         session.add(db_ind)
         await session.commit()
+        await session.refresh(db_ind)
 
     await recalc_indicator(db_ind)
 
-    return {"id": ind_id}
-
+    return {"id": db_ind.id} 
 
 @router.put("/indicator/{ind_id}")
-async def update_indicator(ind_id: str, upd: IndicatorUpdate):
+async def update_indicator(ind_id: int, upd: IndicatorUpdate):
     async with SessionLocal() as session:
         result = await session.execute(
             select(IndicatorDB).where(IndicatorDB.id == ind_id)
@@ -41,6 +39,8 @@ async def update_indicator(ind_id: str, upd: IndicatorUpdate):
             ind.name = upd.name
         if upd.period:
             ind.period = upd.period
+        if upd.type: 
+            ind.type = upd.type
 
         await session.commit()
 
@@ -49,7 +49,7 @@ async def update_indicator(ind_id: str, upd: IndicatorUpdate):
 
 
 @router.delete("/indicator/{ind_id}")
-async def delete_indicator(ind_id: str):
+async def delete_indicator(ind_id: int):
     async with SessionLocal() as session:
         await session.execute(delete(IndicatorDB).where(IndicatorDB.id == ind_id))
         await session.commit()
@@ -79,7 +79,7 @@ async def get_data():
     return {
         "candles": merged,
         "indicators": [
-            {"id": str(i.id), "name": i.name, "period": i.period}
+            {"id": str(i.id), "name": i.name, "type": i.type, "period": i.period}
             for i in inds
         ]
     }

@@ -1,27 +1,83 @@
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+import time
 import asyncio
-from fastapi import FastAPI
-
 from core.db import engine, Base
-from api.indicator_routes import router as indicator_router
 from services.candles import fetch_candles
+from core.settings import APP_NAME, ENVIRONMENT, DEBUG, CORS_ORIGINS
+from core.logging import setup_logging, get_logger
+from services.candles import candle_loop
+from api.indicator_routes import router 
 
-app = FastAPI()
-app.include_router(indicator_router)
+setup_logging()
 
+logger = get_logger(__name__)
 
-async def candle_loop():
-    while True:
-        try:
-            await fetch_candles()
-        except Exception as e:
-            print("fetch error", e)
-
-        await asyncio.sleep(10)
-
-
-@app.on_event("startup")
-async def startup():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Контекстный менеджер для жизненного цикла приложения"""
+    logger.info(f"Starting {APP_NAME}")
+    logger.info(f"Environment: {ENVIRONMENT}")
+    logger.info(f"Debug mode: {DEBUG}")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        logger.info(f"Successfully create database")
 
     asyncio.create_task(candle_loop())
+    logger.info(f"Candle loop started")
+    yield 
+    logger.info(f"Shutting down {APP_NAME}")
+
+
+app = FastAPI(
+    title=APP_NAME,
+    debug=DEBUG,
+    lifespan=lifespan
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(router)
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Middleware для логирования всех запросов"""
+    logger = get_logger("api")
+    
+    start_time = time.time()
+    
+    logger.info(f"Request: {request.method} {request.url.path}")
+    
+    try:
+        response = await call_next(request)
+        
+        process_time = time.time() - start_time
+        logger.info(
+            f"Response: {request.method} {request.url.path} | "
+            f"Status: {response.status_code} | "
+            f"Time: {process_time:.3f}s"
+        )
+        
+        return response
+    
+    except Exception as e:
+        logger.error(
+            f"Error processing request: {request.method} {request.url.path} | {str(e)}",
+            exc_info=True
+        )
+        raise
+
+
+@app.get("/health")
+async def health_check():
+    """Проверка здоровья приложения"""
+    logger.debug("Health check requested")
+    return {"status": "healthy"}

@@ -1,12 +1,17 @@
+import asyncio
 import httpx
 import pandas as pd
 
-from core.config import BYBIT_URL
+from core.logging import get_logger
+from core.settings import BYBIT_URL
 from state.memory import candles
 from services.indicators import recalc_all_indicators
 
+_logger = get_logger("CandlesService")
 
 async def fetch_candles():
+    _logger.debug(f"Starting catch candles")
+
     params = {
         "category": "linear",
         "symbol": "BTCUSDT",
@@ -28,4 +33,13 @@ async def fetch_candles():
     candles.clear()
     candles.extend(df.to_dict(orient="records"))
 
+    _logger.debug(f"Finish catch candles, catched {len(df)} candles")
     await recalc_all_indicators()
+
+async def candle_loop():
+    while True:
+        try:
+            await fetch_candles()
+        except Exception as e:
+            print("fetch error", e)
+        await asyncio.sleep(10)

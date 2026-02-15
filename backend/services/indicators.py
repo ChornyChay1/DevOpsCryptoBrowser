@@ -5,7 +5,7 @@ from sqlalchemy import select
 from core.db import SessionLocal
 from models.indicator import IndicatorDB
 from state.memory import candles, indicator_values
-
+from utils.indicator_calculator import IndicatorsCalculator
 
 def clean(values):
     return [
@@ -14,28 +14,14 @@ def clean(values):
     ]
 
 
-def calc_sma(series, period):
-    return series.rolling(period).mean().tolist()
-
-
-def calc_ema(series, period):
-    return series.ewm(span=period, adjust=False).mean().tolist()
-
-
 async def recalc_indicator(ind: IndicatorDB):
     if not candles:
+        indicator_values[ind.id] = []
         return
 
     df = pd.DataFrame(candles)
-    close = df["close"]
-
-    if ind.name == "sma":
-        values = calc_sma(close, ind.period)
-    elif ind.name == "ema":
-        values = calc_ema(close, ind.period)
-    else:
-        values = []
-
+    period = ind.period or 14
+    values = IndicatorsCalculator.calculate(ind.type, df["close"], period, high=df["high"], low=df["low"])
     indicator_values[ind.id] = values
 
 
