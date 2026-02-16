@@ -13,7 +13,7 @@ router = APIRouter()
 
 @router.post("/indicator")
 async def create_indicator(ind: IndicatorCreate):
-    db_ind = IndicatorDB(name=ind.name, type=ind.type, period=ind.period)
+    db_ind = IndicatorDB(name=ind.name, type=ind.type, period=ind.period, color=ind.color)
 
     async with SessionLocal() as session:
         session.add(db_ind)
@@ -41,6 +41,8 @@ async def update_indicator(ind_id: int, upd: IndicatorUpdate):
             ind.period = upd.period
         if upd.type: 
             ind.type = upd.type
+        if upd.color:
+            ind.color = upd.color
 
         await session.commit()
 
@@ -79,7 +81,7 @@ async def get_data():
     return {
         "candles": merged,
         "indicators": [
-            {"id": str(i.id), "name": i.name, "type": i.type, "period": i.period}
+            {"id": str(i.id), "name": i.name, "type": i.type, "period": i.period, "color": i.color}
             for i in inds
         ]
     }

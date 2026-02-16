@@ -11,3 +11,8 @@ httpx
 
 pandas
 numpy
+
+pytest
+pytest-cov
+pytest-asyncio
+pytest-mock

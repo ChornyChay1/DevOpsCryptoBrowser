@@ -110,6 +110,7 @@ function App() {
             )
         );
       }
+      fetchData()
     } catch (error) {
       console.error('Error updating indicator:', error);
     }

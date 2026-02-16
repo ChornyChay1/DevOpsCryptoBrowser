@@ -8,3 +8,5 @@ class IndicatorDB(Base):
     name = Column(String, nullable=False)
     type = Column(String, nullable=False)
     period = Column(Integer, nullable=False)
+    color = Column(String, nullable=False, default="#000")
+
