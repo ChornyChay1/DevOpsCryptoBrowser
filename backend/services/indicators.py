@@ -21,7 +21,7 @@ async def recalc_indicator(ind: IndicatorDB):
 
     df = pd.DataFrame(candles)
     period = ind.period or 14
-    values = IndicatorsCalculator.calculate(ind.type, df["close"], period, high=df["high"], low=df["low"])
+    values = IndicatorsCalculator.calculate(ind.type, df["close"], period)
     indicator_values[ind.id] = values
 
 

@@ -1,51 +1,87 @@
 import pytest
+import pandas as pd
 from fastapi.testclient import TestClient
 from app import app
-import json
-import os
+from state import memory
+
 
 @pytest.fixture
 def client():
-    """Тестовый клиент FastAPI"""
-    with TestClient(app) as test_client:
-        yield test_client
+    with TestClient(app) as c:
+        yield c
+
 
 @pytest.fixture
-def sample_candles():
-    """Пример данных свечей для тестов"""
-    return [
-        {
-            "timestamp": 1704067200000,
-            "open": 50000.0,
-            "high": 51000.0,
-            "low": 49000.0,
-            "close": 50500.0,
-            "volume": 100.0
-        },
-        {
-            "timestamp": 1704067260000,
-            "open": 50500.0,
-            "high": 51500.0,
-            "low": 50300.0,
-            "close": 51200.0,
-            "volume": 150.0
-        },
-        # Добавьте больше свечей по необходимости
-    ]
+def sample_series():
+    return pd.Series([10, 12, 11, 13, 15, 14, 16, 18, 17, 19])
+
+
+@pytest.fixture
+def sample_ohlc():
+    data = {
+        "high":  [10, 12, 11, 13, 14, 15, 16, 17],
+        "low":   [8, 9, 8, 10, 11, 12, 13, 14],
+        "close": [9, 11, 10, 12, 13, 14, 15, 16],
+    }
+    return {k: pd.Series(v) for k, v in data.items()}
+
 
 @pytest.fixture
 def sample_indicator():
-    """Пример данных индикатора"""
+    """Фикстура с тестовым индикатором для API запросов"""
     return {
         "name": "SMA 14",
         "type": "sma",
         "period": 14,
-        "color": "#00c853"
+        "color": "#FF0000"
     }
 
+
 @pytest.fixture
-def temp_db():
-    """Временная БД для тестов"""
-    # Здесь можно настроить тестовую БД
-    yield
-    # Очистка после тестов
+def sample_candles():
+    """Фикстура с тестовыми свечами для API тестов"""
+    return [
+        {
+            "timestamp": 1625097600000,
+            "open": 50000.0,
+            "high": 51000.0,
+            "low": 49000.0,
+            "close": 50500.0,
+            "volume": 100.0,
+            "turnover": 5000000.0
+        },
+        {
+            "timestamp": 1625184000000,
+            "open": 50500.0,
+            "high": 52000.0,
+            "low": 50000.0,
+            "close": 51500.0,
+            "volume": 150.0,
+            "turnover": 7500000.0
+        },
+        {
+            "timestamp": 1625270400000,
+            "open": 51500.0,
+            "high": 53000.0,
+            "low": 51000.0,
+            "close": 52500.0,
+            "volume": 200.0,
+            "turnover": 10000000.0
+        }
+    ]
+
+
+@pytest.fixture
+def mock_candles(sample_ohlc):
+    """Подменяем глобальные candles для calculate()"""
+    memory.candles.clear()
+
+    for i in range(len(sample_ohlc["close"])):
+        memory.candles.append({
+            "high": float(sample_ohlc["high"].iloc[i]),
+            "low": float(sample_ohlc["low"].iloc[i]),
+            "close": float(sample_ohlc["close"].iloc[i]),
+        })
+
+    yield memory.candles
+    memory.candles.clear()
