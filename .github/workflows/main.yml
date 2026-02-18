@@ -7,9 +7,12 @@ jobs:
     defaults:
       run:
         working-directory: ./backend
-
     steps:
       - uses: actions/checkout@v3
+
+      # создаём .env сразу, чтобы любые импорты видели DATABASE_URL
+      - name: Create .env
+        run: echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > .env
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -35,32 +38,33 @@ jobs:
         working-directory: ./backend
     steps:
       - uses: actions/checkout@v3
-  
+
+      # создаём .env снова, чтобы быть уверенным, что тесты видят секрет
+      - name: Create .env
+        run: echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > .env
+
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-  
+
       - name: Cache pip
         uses: actions/cache@v3
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt') }}
-  
+
       - name: Install dependencies
         run: pip install -r requirements.txt
-  
+
       - name: Run tests
-        run: |
-          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > .env
-          pytest tests/ -v
+        run: pytest tests/ -v
 
   frontend-build:
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ./frontend
-
     steps:
       - uses: actions/checkout@v3
 
@@ -78,13 +82,15 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Build
+        run: npm run build
+
   frontend-test:
     needs: frontend-build
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ./frontend
-
     steps:
       - uses: actions/checkout@v3
 
