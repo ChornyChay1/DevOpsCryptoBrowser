@@ -33,30 +33,27 @@ jobs:
     defaults:
       run:
         working-directory: ./backend
-
     steps:
       - uses: actions/checkout@v3
-
+  
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-
+  
       - name: Cache pip
         uses: actions/cache@v3
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt') }}
-
+  
       - name: Install dependencies
         run: pip install -r requirements.txt
-
-      - name: Create .env
-        run: |
-          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > ./backend/.env
-          
+  
       - name: Run tests
-        run: pytest tests/ -v
+        run: |
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > .env
+          pytest tests/ -v
 
   frontend-build:
     runs-on: ubuntu-latest
