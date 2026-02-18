@@ -1,24 +1,92 @@
-on:
-  workflow_dispatch:
+name: CI
+
+on: workflow_dispatch
 jobs:
-  tests:
-    name: Tests
+  backend-build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-         
-      - name: Setup Python 
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v3
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-          
+      
       - name: Install dependencies
         run: |
-          cd backend
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install flake8  # для проверки кода
+      
+      - name: Lint with flake8
+        run: |
+          flake8 app/ --max-line-length=120
 
+  backend-test:
+    needs: backend-build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest
+      
       - name: Run tests
         run: |
-          cd backend
-          python -m pytest
+          pytest tests/ -v
+
+  frontend-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Build
+        run: npm run build
+
+  frontend-test:
+    needs: frontend-build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Run tests
+        run: npm test -- --watchAll=false
