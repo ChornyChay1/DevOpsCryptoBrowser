@@ -53,6 +53,10 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Create .env
+        run: |
+          echo "DATABASE_URL=${DATABASE_URL}" > .env
+          
       - name: Run tests
         run: pytest tests/ -v
 
