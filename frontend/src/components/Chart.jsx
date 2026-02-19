@@ -4,7 +4,6 @@ import { createChart, CandlestickSeries, LineSeries } from 'lightweight-charts';
 
 function Chart({ candles, indicators }) {
     const mainChartRef = useRef();
-    const subChartRef = useRef();
     const mainChartInstance = useRef();
     const subChartInstance = useRef();
     const mainSeriesRef = useRef();
@@ -187,7 +186,6 @@ function Chart({ candles, indicators }) {
         subIndicatorSeriesRef.current = {};
 
         const priceIndicators = indicators.filter(ind => ['sma', 'ema', 'wma'].includes(ind.type));
-        const oscillatorIndicators = indicators.filter(ind => !['sma', 'ema', 'wma'].includes(ind.type));
 
         const prepareIndicatorData = (indicatorId) => {
             const data = [];
