@@ -1,4 +1,4 @@
-name: CI with artifacts
+name: CI
 on: workflow_dispatch
 
 jobs:
