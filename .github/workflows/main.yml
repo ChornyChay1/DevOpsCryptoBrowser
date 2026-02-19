@@ -3,7 +3,7 @@ name: CI
 on: workflow_dispatch
 
 jobs:
-  # ================= BACKEND BUILD =================
+  # ================= Backend Build =================
   backend-build:
     runs-on: ubuntu-latest
     defaults:
@@ -21,33 +21,35 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt') }}
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
       - name: Create .env file
         run: |
-          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > .env
-          echo "APP_NAME=\"Trading Indicators API\"" >> .env
-          echo "DEBUG=false" >> .env
-          echo "ENVIRONMENT=development" >> .env
-          echo "LOG_LEVEL=INFO" >> .env
-          echo "LOG_FORMAT=text" >> .env
-          echo "LOG_TO_CONSOLE=true" >> .env
-          echo "LOG_TO_FILE=true" >> .env
-          echo "LOG_DIR=logs" >> .env
-          echo "LOG_FILE_MAX_BYTES=10485760" >> .env
-          echo "LOG_FILE_BACKUP_COUNT=5" >> .env
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > ./backend/.env
+          echo "APP_NAME=\"Trading Indicators API\"" >> ./backend/.env
+          echo "DEBUG=false" >> ./backend/.env
+          echo "ENVIRONMENT=development" >> ./backend/.env
+          echo "LOG_LEVEL=INFO" >> ./backend/.env
+          echo "LOG_FORMAT=text" >> ./backend/.env
+          echo "LOG_TO_CONSOLE=true" >> ./backend/.env
+          echo "LOG_TO_FILE=true" >> ./backend/.env
+          echo "LOG_DIR=logs" >> ./backend/.env
+          echo "LOG_FILE_MAX_BYTES=10485760" >> ./backend/.env
+          echo "LOG_FILE_BACKUP_COUNT=5" >> ./backend/.env
 
       - name: Upload .env as artifact
         uses: actions/upload-artifact@v4
         with:
           name: backend-env
-          path: .env
+          path: ./backend/.env
           retention-days: 1
 
-  # ================= BACKEND TEST =================
+  # ================= Backend Tests =================
   backend-test:
     needs: backend-build
     runs-on: ubuntu-latest
@@ -61,10 +63,10 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: backend-env
-          path: ./  # кладём прямо в ./backend
+          path: ./backend/
 
       - name: Verify .env file
-        run: cat .env
+        run: cat ./backend/.env
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -75,7 +77,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt') }}
 
       - name: Install dependencies
         run: pip install -r requirements.txt
@@ -83,7 +85,7 @@ jobs:
       - name: Run tests
         run: pytest tests/ -v
 
-  # ================= FRONTEND BUILD =================
+  # ================= Frontend Build =================
   frontend-build:
     runs-on: ubuntu-latest
     defaults:
@@ -101,7 +103,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-node-${{ hashFiles('frontend/package-lock.json') }}
 
       - name: Install dependencies
         run: npm install
@@ -115,8 +117,8 @@ jobs:
           name: frontend-build
           path: ./build
           retention-days: 1
-
-  # ================= FRONTEND TEST =================
+          
+  # ================= Frontend Tests =================
   frontend-test:
     needs: frontend-build
     runs-on: ubuntu-latest
@@ -125,12 +127,6 @@ jobs:
         working-directory: ./frontend
     steps:
       - uses: actions/checkout@v3
-
-      - name: Download frontend build artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: frontend-build
-          path: ./build
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
@@ -141,7 +137,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-node-${{ hashFiles('frontend/package-lock.json') }}
 
       - name: Install dependencies
         run: npm install
