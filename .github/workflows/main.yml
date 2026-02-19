@@ -1,5 +1,4 @@
-name: CI
-
+name: CI with artifacts
 on: workflow_dispatch
 
 jobs:
@@ -27,27 +26,28 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Ensure backend directory exists
+        run: mkdir -p ./backend
+
       - name: Create .env file
         run: |
-          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > .env
-          echo 'APP_NAME="Trading Indicators API"' >> .env
-          echo "DEBUG=false" >> .env
-          echo "ENVIRONMENT=development" >> .env
-          echo "LOG_LEVEL=INFO" >> .env
-          echo "LOG_FORMAT=text" >> .env
-          echo "LOG_TO_CONSOLE=true" >> .env
-          echo "LOG_TO_FILE=true" >> .env
-          echo "LOG_DIR=logs" >> .env
-          echo "LOG_FILE_MAX_BYTES=10485760" >> .env
-          echo "LOG_FILE_BACKUP_COUNT=5" >> .env
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > ./backend/.env
+          echo 'APP_NAME="Trading Indicators API"' >> ./backend/.env
+          echo "DEBUG=false" >> ./backend/.env
+          echo "ENVIRONMENT=development" >> ./backend/.env
+          echo "LOG_LEVEL=INFO" >> ./backend/.env
+          echo "LOG_FORMAT=text" >> ./backend/.env
+          echo "LOG_TO_CONSOLE=true" >> ./backend/.env
+          echo "LOG_TO_FILE=true" >> ./backend/.env
+          echo "LOG_DIR=logs" >> ./backend/.env
+          echo "LOG_FILE_MAX_BYTES=10485760" >> ./backend/.env
+          echo "LOG_FILE_BACKUP_COUNT=5" >> ./backend/.env
 
       - name: Upload backend .env
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: backend-env
-          path: .env
-          if-no-files-found: error
-          retention-days: 1
+          path: ./backend/.env
 
   backend-test:
     needs: backend-build
@@ -58,14 +58,14 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Download .env artifact
-        uses: actions/download-artifact@v4
+      - name: Download backend .env artifact
+        uses: actions/download-artifact@v3
         with:
           name: backend-env
-          path: .
+          path: ./backend
 
       - name: Verify .env file
-        run: cat .env
+        run: cat ./backend/.env
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -81,7 +81,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run tests
+      - name: Run backend tests
         run: pytest tests/ -v
 
   frontend-build:
@@ -110,12 +110,10 @@ jobs:
         run: npm run build
 
       - name: Upload frontend build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: frontend-build
-          path: ./build
-          if-no-files-found: error
-          retention-days: 1
+          path: ./frontend/build
 
   frontend-test:
     needs: frontend-build
@@ -141,10 +139,10 @@ jobs:
         run: npm install
 
       - name: Download frontend build artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v3
         with:
           name: frontend-build
-          path: ./build
+          path: ./frontend/build
 
       - name: Run frontend tests
         run: npm test -- --watchAll=false
