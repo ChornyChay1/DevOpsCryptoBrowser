@@ -3,9 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import time
 import asyncio
-from core.db import engine, Base
+from core.db import Base, get_engine
 from services.candles import fetch_candles
-from core.settings import APP_NAME, ENVIRONMENT, DEBUG, CORS_ORIGINS
+from core.settings import get_app_name, get_environment, get_debug
 from core.logging import setup_logging, get_logger
 from services.candles import candle_loop
 from api.indicator_routes import router 
@@ -17,9 +17,10 @@ logger = get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Контекстный менеджер для жизненного цикла приложения"""
-    logger.info(f"Starting {APP_NAME}")
-    logger.info(f"Environment: {ENVIRONMENT}")
-    logger.info(f"Debug mode: {DEBUG}")
+    logger.info(f"Starting {get_app_name()}")
+    logger.info(f"Environment: {get_environment()}")
+    logger.info(f"Debug mode: {get_debug()}")
+    engine = get_engine()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         logger.info(f"Successfully create database")
@@ -27,12 +28,12 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(candle_loop())
     logger.info(f"Candle loop started")
     yield 
-    logger.info(f"Shutting down {APP_NAME}")
+    logger.info(f"Shutting down {get_app_name()}")
 
 
 app = FastAPI(
-    title=APP_NAME,
-    debug=DEBUG,
+    title=get_app_name(),
+    debug=get_debug(),
     lifespan=lifespan
 )
 

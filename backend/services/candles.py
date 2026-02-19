@@ -3,7 +3,7 @@ import httpx
 import pandas as pd
 
 from core.logging import get_logger
-from core.settings import BYBIT_URL
+from core.settings import get_bybit_url
 from state.memory import candles
 from services.indicators import recalc_all_indicators
 
@@ -20,7 +20,7 @@ async def fetch_candles():
     }
 
     async with httpx.AsyncClient() as client:
-        r = await client.get(BYBIT_URL, params=params)
+        r = await client.get(get_bybit_url(), params=params)
         data = r.json()
 
     raw = data["result"]["list"]
