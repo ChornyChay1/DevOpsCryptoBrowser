@@ -1,3 +1,5 @@
+from unittest.mock import patch, MagicMock, AsyncMock
+
 import pytest
 import pandas as pd
 from fastapi.testclient import TestClient
@@ -85,3 +87,25 @@ def mock_candles(sample_ohlc):
 
     yield memory.candles
     memory.candles.clear()
+
+
+@pytest.fixture(autouse=True)
+def mock_db_session():
+    with patch("core.db.get_session_local") as mock_get_session_local:
+        mock_session = AsyncMock()
+        mock_session.__aenter__.return_value = mock_session
+        mock_session.__aexit__.return_value = None
+        mock_session.add = MagicMock()
+        mock_session.commit = AsyncMock()
+        mock_session.refresh = AsyncMock()
+
+        async def refresh_side_effect(ind):
+            ind.id = 1
+
+        mock_session.refresh.side_effect = refresh_side_effect
+
+        mock_session_factory = MagicMock()
+        mock_session_factory.return_value = mock_session
+        mock_get_session_local.return_value = mock_session_factory
+
+        yield mock_session
