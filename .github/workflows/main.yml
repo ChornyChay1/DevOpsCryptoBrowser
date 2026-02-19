@@ -1,9 +1,12 @@
 name: CI
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:
 
 jobs:
-  # ================= Backend Build =================
+  # ========================
+  # Backend build
+  # ========================
   backend-build:
     runs-on: ubuntu-latest
     defaults:
@@ -30,26 +33,28 @@ jobs:
 
       - name: Create .env file
         run: |
-          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > ./backend/.env
-          echo "APP_NAME=\"Trading Indicators API\"" >> ./backend/.env
-          echo "DEBUG=false" >> ./backend/.env
-          echo "ENVIRONMENT=development" >> ./backend/.env
-          echo "LOG_LEVEL=INFO" >> ./backend/.env
-          echo "LOG_FORMAT=text" >> ./backend/.env
-          echo "LOG_TO_CONSOLE=true" >> ./backend/.env
-          echo "LOG_TO_FILE=true" >> ./backend/.env
-          echo "LOG_DIR=logs" >> ./backend/.env
-          echo "LOG_FILE_MAX_BYTES=10485760" >> ./backend/.env
-          echo "LOG_FILE_BACKUP_COUNT=5" >> ./backend/.env
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > $GITHUB_WORKSPACE/backend/.env
+          echo "APP_NAME=\"Trading Indicators API\"" >> $GITHUB_WORKSPACE/backend/.env
+          echo "DEBUG=false" >> $GITHUB_WORKSPACE/backend/.env
+          echo "ENVIRONMENT=development" >> $GITHUB_WORKSPACE/backend/.env
+          echo "LOG_LEVEL=INFO" >> $GITHUB_WORKSPACE/backend/.env
+          echo "LOG_FORMAT=text" >> $GITHUB_WORKSPACE/backend/.env
+          echo "LOG_TO_CONSOLE=true" >> $GITHUB_WORKSPACE/backend/.env
+          echo "LOG_TO_FILE=true" >> $GITHUB_WORKSPACE/backend/.env
+          echo "LOG_DIR=logs" >> $GITHUB_WORKSPACE/backend/.env
+          echo "LOG_FILE_MAX_BYTES=10485760" >> $GITHUB_WORKSPACE/backend/.env
+          echo "LOG_FILE_BACKUP_COUNT=5" >> $GITHUB_WORKSPACE/backend/.env
 
       - name: Upload .env as artifact
         uses: actions/upload-artifact@v4
         with:
           name: backend-env
-          path: ./backend/.env
+          path: $GITHUB_WORKSPACE/backend/.env
           retention-days: 1
 
-  # ================= Backend Tests =================
+  # ========================
+  # Backend test
+  # ========================
   backend-test:
     needs: backend-build
     runs-on: ubuntu-latest
@@ -63,10 +68,10 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: backend-env
-          path: ./backend/
+          path: $GITHUB_WORKSPACE/backend
 
       - name: Verify .env file
-        run: cat ./backend/.env
+        run: cat $GITHUB_WORKSPACE/backend/.env
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -85,7 +90,9 @@ jobs:
       - name: Run tests
         run: pytest tests/ -v
 
-  # ================= Frontend Build =================
+  # ========================
+  # Frontend build
+  # ========================
   frontend-build:
     runs-on: ubuntu-latest
     defaults:
@@ -108,17 +115,19 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build
+      - name: Build frontend
         run: npm run build
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: frontend-build
-          path: ./build
+          path: $GITHUB_WORKSPACE/frontend/build
           retention-days: 1
-          
-  # ================= Frontend Tests =================
+
+  # ========================
+  # Frontend test
+  # ========================
   frontend-test:
     needs: frontend-build
     runs-on: ubuntu-latest
@@ -142,5 +151,11 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Run tests
+      - name: Download frontend build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: $GITHUB_WORKSPACE/frontend/build
+
+      - name: Run frontend tests
         run: npm test -- --watchAll=false
