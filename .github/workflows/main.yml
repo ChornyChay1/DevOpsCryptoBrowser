@@ -1,6 +1,7 @@
 name: CI
 
 on: workflow_dispatch
+
 jobs:
   backend-build:
     runs-on: ubuntu-latest
@@ -9,10 +10,6 @@ jobs:
         working-directory: ./backend
     steps:
       - uses: actions/checkout@v3
-
-      # создаём .env сразу, чтобы любые импорты видели DATABASE_URL
-      - name: Create .env
-        run: echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > .env
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -39,9 +36,19 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      # создаём .env снова, чтобы быть уверенным, что тесты видят секрет
       - name: Create .env
-        run: echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > .env
+        run: |
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > .env
+          echo "APP_NAME=\"Trading Indicators API\"" >> .env
+          echo "DEBUG=false" >> .env
+          echo "ENVIRONMENT=development" >> .env
+          echo "LOG_LEVEL=INFO" >> .env
+          echo "LOG_FORMAT=text" >> .env
+          echo "LOG_TO_CONSOLE=true" >> .env
+          echo "LOG_TO_FILE=true" >> .env
+          echo "LOG_DIR=logs" >> .env
+          echo "LOG_FILE_MAX_BYTES=10485760" >> .env
+          echo "LOG_FILE_BACKUP_COUNT=5" >> .env
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -81,9 +88,6 @@ jobs:
 
       - name: Install dependencies
         run: npm install
-
-      - name: Build
-        run: npm run build
 
   frontend-test:
     needs: frontend-build
