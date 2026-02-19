@@ -1,12 +1,8 @@
 name: CI
 
-on:
-  workflow_dispatch:
+on: workflow_dispatch
 
 jobs:
-  # ========================
-  # Backend build
-  # ========================
   backend-build:
     runs-on: ubuntu-latest
     defaults:
@@ -24,7 +20,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
 
       - name: Install dependencies
         run: |
@@ -33,28 +29,26 @@ jobs:
 
       - name: Create .env file
         run: |
-          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > $GITHUB_WORKSPACE/backend/.env
-          echo "APP_NAME=\"Trading Indicators API\"" >> $GITHUB_WORKSPACE/backend/.env
-          echo "DEBUG=false" >> $GITHUB_WORKSPACE/backend/.env
-          echo "ENVIRONMENT=development" >> $GITHUB_WORKSPACE/backend/.env
-          echo "LOG_LEVEL=INFO" >> $GITHUB_WORKSPACE/backend/.env
-          echo "LOG_FORMAT=text" >> $GITHUB_WORKSPACE/backend/.env
-          echo "LOG_TO_CONSOLE=true" >> $GITHUB_WORKSPACE/backend/.env
-          echo "LOG_TO_FILE=true" >> $GITHUB_WORKSPACE/backend/.env
-          echo "LOG_DIR=logs" >> $GITHUB_WORKSPACE/backend/.env
-          echo "LOG_FILE_MAX_BYTES=10485760" >> $GITHUB_WORKSPACE/backend/.env
-          echo "LOG_FILE_BACKUP_COUNT=5" >> $GITHUB_WORKSPACE/backend/.env
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > .env
+          echo 'APP_NAME="Trading Indicators API"' >> .env
+          echo "DEBUG=false" >> .env
+          echo "ENVIRONMENT=development" >> .env
+          echo "LOG_LEVEL=INFO" >> .env
+          echo "LOG_FORMAT=text" >> .env
+          echo "LOG_TO_CONSOLE=true" >> .env
+          echo "LOG_TO_FILE=true" >> .env
+          echo "LOG_DIR=logs" >> .env
+          echo "LOG_FILE_MAX_BYTES=10485760" >> .env
+          echo "LOG_FILE_BACKUP_COUNT=5" >> .env
 
-      - name: Upload .env as artifact
+      - name: Upload backend .env
         uses: actions/upload-artifact@v4
         with:
           name: backend-env
-          path: $GITHUB_WORKSPACE/backend/.env
+          path: .env
+          if-no-files-found: error
           retention-days: 1
 
-  # ========================
-  # Backend test
-  # ========================
   backend-test:
     needs: backend-build
     runs-on: ubuntu-latest
@@ -68,10 +62,10 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: backend-env
-          path: $GITHUB_WORKSPACE/backend
+          path: .
 
       - name: Verify .env file
-        run: cat $GITHUB_WORKSPACE/backend/.env
+        run: cat .env
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -82,7 +76,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
 
       - name: Install dependencies
         run: pip install -r requirements.txt
@@ -90,9 +84,6 @@ jobs:
       - name: Run tests
         run: pytest tests/ -v
 
-  # ========================
-  # Frontend build
-  # ========================
   frontend-build:
     runs-on: ubuntu-latest
     defaults:
@@ -110,7 +101,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-node-${{ hashFiles('frontend/package-lock.json') }}
+          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
 
       - name: Install dependencies
         run: npm install
@@ -118,16 +109,14 @@ jobs:
       - name: Build frontend
         run: npm run build
 
-      - name: Upload build artifacts
+      - name: Upload frontend build
         uses: actions/upload-artifact@v4
         with:
           name: frontend-build
-          path: $GITHUB_WORKSPACE/frontend/build
+          path: ./build
+          if-no-files-found: error
           retention-days: 1
 
-  # ========================
-  # Frontend test
-  # ========================
   frontend-test:
     needs: frontend-build
     runs-on: ubuntu-latest
@@ -146,7 +135,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-node-${{ hashFiles('frontend/package-lock.json') }}
+          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
 
       - name: Install dependencies
         run: npm install
@@ -155,7 +144,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: frontend-build
-          path: $GITHUB_WORKSPACE/frontend/build
+          path: ./build
 
       - name: Run frontend tests
         run: npm test -- --watchAll=false
