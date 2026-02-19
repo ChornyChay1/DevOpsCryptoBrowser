@@ -1,34 +1,16 @@
-from unittest.mock import patch, MagicMock, AsyncMock
-import pytest
 import pandas as pd
-
-mock_engine = MagicMock()
-mock_session = AsyncMock()
-mock_session.__aenter__.return_value = mock_session
-mock_session.__aexit__.return_value = None
-mock_session.add = MagicMock()
-mock_session.commit = AsyncMock()
-mock_session.refresh = AsyncMock()
-
-async def refresh_side_effect(ind):
-    ind.id = 1
-
-mock_session.refresh.side_effect = refresh_side_effect
-
-mock_session_factory = MagicMock()
-mock_session_factory.return_value = mock_session
-
-patch('sqlalchemy.ext.asyncio.create_async_engine', return_value=mock_engine).start()
-patch('core.db.get_session_local', return_value=mock_session_factory).start()
-
-from app import app
-from state import memory
+import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from state import memory
+
+test_app = FastAPI()
+test_app.include_router(router)
 
 @pytest.fixture
 def client():
-    with TestClient(app) as c:
+    with TestClient(test_app) as c:
         yield c
 
 
