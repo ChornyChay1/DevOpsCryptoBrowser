@@ -27,16 +27,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-  backend-test:
-    needs: backend-build
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./backend
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Create .env
+      - name: Create .env file
         run: |
           echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > .env
           echo "APP_NAME=\"Trading Indicators API\"" >> .env
@@ -49,6 +40,31 @@ jobs:
           echo "LOG_DIR=logs" >> .env
           echo "LOG_FILE_MAX_BYTES=10485760" >> .env
           echo "LOG_FILE_BACKUP_COUNT=5" >> .env
+
+      - name: Upload .env as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-env
+          path: ./backend/.env
+          retention-days: 1
+
+  backend-test:
+    needs: backend-build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Download .env artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-env
+          path: ./backend/
+
+      - name: Verify .env file
+        run: cat .env
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -92,6 +108,13 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: ./frontend/dist
+          retention-days: 1
+          
   frontend-test:
     needs: frontend-build
     runs-on: ubuntu-latest
