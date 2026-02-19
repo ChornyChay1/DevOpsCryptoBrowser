@@ -45,7 +45,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: backend-env
-          path: ./backend/.env
+          path: ./.env
           retention-days: 1
 
   backend-test:
@@ -112,7 +112,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: frontend-build
-          path: ./frontend/dist
+          path: ./build
           retention-days: 1
           
   frontend-test:
