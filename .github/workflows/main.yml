@@ -26,11 +26,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Ensure backend directory exists
-        run: mkdir -p ./backend
-
       - name: Create .env file
         run: |
+          mkdir -p ./backend
           echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > ./backend/.env
           echo 'APP_NAME="Trading Indicators API"' >> ./backend/.env
           echo "DEBUG=false" >> ./backend/.env
@@ -44,10 +42,11 @@ jobs:
           echo "LOG_FILE_BACKUP_COUNT=5" >> ./backend/.env
 
       - name: Upload backend .env
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: backend-env
           path: ./backend/.env
+          if-no-files-found: error
 
   backend-test:
     needs: backend-build
@@ -59,7 +58,7 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Download backend .env artifact
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: backend-env
           path: ./backend
@@ -110,10 +109,11 @@ jobs:
         run: npm run build
 
       - name: Upload frontend build
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: frontend-build
           path: ./frontend/build
+          if-no-files-found: error
 
   frontend-test:
     needs: frontend-build
@@ -139,7 +139,7 @@ jobs:
         run: npm install
 
       - name: Download frontend build artifact
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: frontend-build
           path: ./frontend/build
