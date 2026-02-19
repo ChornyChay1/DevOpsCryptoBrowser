@@ -3,9 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import time
 import asyncio
-from core.db import engine, Base
+from core.db import Base, get_engine
 from services.candles import fetch_candles
-from core.settings import APP_NAME, ENVIRONMENT, DEBUG, CORS_ORIGINS
+from core.settings import APP_NAME, ENVIRONMENT, DEBUG
 from core.logging import setup_logging, get_logger
 from services.candles import candle_loop
 from api.indicator_routes import router 
@@ -20,6 +20,7 @@ async def lifespan(app: FastAPI):
     logger.info(f"Starting {APP_NAME}")
     logger.info(f"Environment: {ENVIRONMENT}")
     logger.info(f"Debug mode: {DEBUG}")
+    engine = get_engine()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         logger.info(f"Successfully create database")

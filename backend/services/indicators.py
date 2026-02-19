@@ -2,7 +2,7 @@ import math
 import pandas as pd
 
 from sqlalchemy import select
-from core.db import SessionLocal
+from core.db import get_session_local
 from models.indicator import IndicatorDB
 from state.memory import candles, indicator_values
 from utils.indicator_calculator import IndicatorsCalculator
@@ -26,6 +26,7 @@ async def recalc_indicator(ind: IndicatorDB):
 
 
 async def recalc_all_indicators():
+    SessionLocal = get_session_local()
     async with SessionLocal() as session:
         result = await session.execute(select(IndicatorDB))
         inds = result.scalars().all()

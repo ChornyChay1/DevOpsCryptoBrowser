@@ -3,7 +3,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+def getDatabaseUrl():
+    return os.getenv("DATABASE_URL")
+
 BYBIT_URL = "https://api.bybit.com/v5/market/kline"
 
 APP_NAME = os.getenv("APP_NAME")

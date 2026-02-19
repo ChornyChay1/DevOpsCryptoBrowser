@@ -1,13 +1,15 @@
 # tests/test_indicators.py
+from unittest.mock import AsyncMock, patch, MagicMock
+
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock, ANY
 from fastapi.testclient import TestClient
-from services.indicators import recalc_indicator, clean
-from services.candles import fetch_candles, candle_loop
+
 from models.indicator import IndicatorDB
 from schemas.indicator import IndicatorCreate, IndicatorUpdate
-from utils.constants import Indicators
+from services.candles import fetch_candles
+from services.indicators import recalc_indicator, clean
 from state.memory import candles, indicator_values
+from utils.constants import Indicators
 
 
 @pytest.mark.asyncio
