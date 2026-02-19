@@ -2,7 +2,7 @@ import pandas as pd
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-
+from api.indicator_routes import router
 from state import memory
 
 test_app = FastAPI()
@@ -92,5 +92,16 @@ def mock_candles(sample_ohlc):
 
 @pytest.fixture(autouse=True)
 def mock_db_session():
-    """Фикстура для доступа к замоканной сессии в тестах"""
-    return mock_session
+    """Фикстура для замоканной async-сессии SQLAlchemy"""
+    from unittest.mock import AsyncMock, MagicMock
+
+    mock_session = AsyncMock()
+    mock_session.add = MagicMock()
+    mock_session.commit = AsyncMock()
+    mock_session.refresh = AsyncMock()
+
+    async def refresh_side_effect(ind):
+        ind.id = 1
+    mock_session.refresh.side_effect = refresh_side_effect
+
+    yield mock_session
