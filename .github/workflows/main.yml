@@ -25,28 +25,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-
-      - name: Create .env file
-        run: |
-          mkdir -p ./backend
-          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > ./backend/.env
-          echo 'APP_NAME="Trading Indicators API"' >> ./backend/.env
-          echo "DEBUG=false" >> ./backend/.env
-          echo "ENVIRONMENT=development" >> ./backend/.env
-          echo "LOG_LEVEL=INFO" >> ./backend/.env
-          echo "LOG_FORMAT=text" >> ./backend/.env
-          echo "LOG_TO_CONSOLE=true" >> ./backend/.env
-          echo "LOG_TO_FILE=true" >> ./backend/.env
-          echo "LOG_DIR=logs" >> ./backend/.env
-          echo "LOG_FILE_MAX_BYTES=10485760" >> ./backend/.env
-          echo "LOG_FILE_BACKUP_COUNT=5" >> ./backend/.env
-
-      - name: Upload backend .env
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-env
-          path: ./backend/.env
-          if-no-files-found: error
+  
 
   backend-test:
     needs: backend-build
@@ -80,6 +59,21 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Create .env file
+        run: |
+          mkdir -p ./backend
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > ./backend/.env
+          echo 'APP_NAME="Trading Indicators API"' >> ./backend/.env
+          echo "DEBUG=false" >> ./backend/.env
+          echo "ENVIRONMENT=development" >> ./backend/.env
+          echo "LOG_LEVEL=INFO" >> ./backend/.env
+          echo "LOG_FORMAT=text" >> ./backend/.env
+          echo "LOG_TO_CONSOLE=true" >> ./backend/.env
+          echo "LOG_TO_FILE=true" >> ./backend/.env
+          echo "LOG_DIR=logs" >> ./backend/.env
+          echo "LOG_FILE_MAX_BYTES=10485760" >> ./backend/.env
+          echo "LOG_FILE_BACKUP_COUNT=5" >> ./backend/.env
+  
       - name: Run backend tests
         run: pytest tests/ -v
 
@@ -137,12 +131,6 @@ jobs:
 
       - name: Install dependencies
         run: npm install
-
-      - name: Download frontend build artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: frontend-build
-          path: ./frontend/build
 
       - name: Run frontend tests
         run: npm test -- --watchAll=false
