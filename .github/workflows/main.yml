@@ -52,18 +52,17 @@ jobs:
 
       - name: Create .env file
         run: |
-          mkdir -p ./backend
-          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > ./backend/.env
-          echo 'APP_NAME="Trading Indicators API"' >> ./backend/.env
-          echo "DEBUG=false" >> ./backend/.env
-          echo "ENVIRONMENT=development" >> ./backend/.env
-          echo "LOG_LEVEL=INFO" >> ./backend/.env
-          echo "LOG_FORMAT=text" >> ./backend/.env
-          echo "LOG_TO_CONSOLE=true" >> ./backend/.env
-          echo "LOG_TO_FILE=true" >> ./backend/.env
-          echo "LOG_DIR=logs" >> ./backend/.env
-          echo "LOG_FILE_MAX_BYTES=10485760" >> ./backend/.env
-          echo "LOG_FILE_BACKUP_COUNT=5" >> ./backend/.env
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > .env
+          echo "APP_NAME=\"Trading Indicators API\"" >> .env
+          echo "DEBUG=false" >> .env
+          echo "ENVIRONMENT=development" >> .env
+          echo "LOG_LEVEL=INFO" >> .env
+          echo "LOG_FORMAT=text" >> .env
+          echo "LOG_TO_CONSOLE=true" >> .env
+          echo "LOG_TO_FILE=true" >> .env
+          echo "LOG_DIR=logs" >> .env
+          echo "LOG_FILE_MAX_BYTES=10485760" >> .env
+          echo "LOG_FILE_BACKUP_COUNT=5" >> .env
   
       - name: Run backend tests
         run: pytest tests/ -v
