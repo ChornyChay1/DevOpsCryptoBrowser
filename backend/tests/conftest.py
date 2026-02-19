@@ -3,24 +3,41 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from unittest.mock import patch, AsyncMock, MagicMock
-from api.indicator_routes import router
 from state import memory
 
-# Мокаем get_session_local на уровне модуля ДО создания приложения
-mock_session = AsyncMock()
-mock_session.add = MagicMock()
-mock_session.commit = AsyncMock()
-mock_session.refresh = AsyncMock()
+mock_engine = AsyncMock()
+mock_engine.connect = AsyncMock()
+mock_engine.begin = AsyncMock()
+mock_engine.dispose = MagicMock()
 
-async def refresh_side_effect(ind):
-    ind.id = 1
+# Мокаем сессию
+mock_session = AsyncMock()
+
+# Важно: настраиваем асинхронные методы на возврат None, а не другого мока
+mock_session.add = MagicMock()
+mock_session.commit = AsyncMock(return_value=None)
+mock_session.refresh = AsyncMock(return_value=None)
+mock_session.execute = AsyncMock(return_value=None)
+
+# Side effect для refresh - устанавливаем id объекту
+async def refresh_side_effect(instance, *args, **kwargs):
+    instance.id = 1  # Устанавливаем id
+
 mock_session.refresh.side_effect = refresh_side_effect
+
+# Настраиваем контекстный менеджер
+mock_session.__aenter__.return_value = mock_session
+mock_session.__aexit__.return_value = None
 
 mock_session_factory = MagicMock()
 mock_session_factory.return_value = mock_session
 
-# Применяем патч ДО импорта всего остального
+# Применяем патчи
+patch('sqlalchemy.ext.asyncio.create_async_engine', return_value=mock_engine).start()
 patch('core.db.get_session_local', return_value=mock_session_factory).start()
+
+# Импортируем роутер
+from api.indicator_routes import router
 
 test_app = FastAPI()
 test_app.include_router(router)
