@@ -1,0 +1,56 @@
+version: '3.9'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: postgres_db
+    environment:
+      POSTGRES_USER: ${DB_LOGIN}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: crypto_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app_network
+    restart: always
+
+  backend:
+    image: cr.yandex/crpkl4pgojohfidok157/crypto-backend:1.0
+    container_name: fastapi_app
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${DB_LOGIN}:${DB_PASSWORD}@db:5432/crypto_db
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app_network
+    restart: always
+
+  frontend:
+    image: cr.yandex/crpkl4pgojohfidok157/crypto-frontend:1.0
+    container_name: react_app
+    ports:
+      - "3000:3000"
+    environment:
+      REACT_APP_API_URL: http://localhost:8000
+    depends_on:
+      - backend
+    networks:
+      - app_network
+    restart: always
+
+volumes:
+  postgres_data:
+
+networks:
+  app_network:
+    driver: bridge
