@@ -1,11 +1,13 @@
 import math
-import pandas as pd
 
+import pandas as pd
 from sqlalchemy import select
+
 from core.db import get_session_local
 from models.indicator import IndicatorDB
 from state.memory import candles, indicator_values
 from utils.indicator_calculator import IndicatorsCalculator
+
 
 def clean(values):
     return [

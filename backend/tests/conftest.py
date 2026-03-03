@@ -1,8 +1,10 @@
+from unittest.mock import patch, AsyncMock, MagicMock
+
 import pandas as pd
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from unittest.mock import patch, AsyncMock, MagicMock
+
 from state import memory
 
 mock_engine = AsyncMock()
@@ -10,16 +12,13 @@ mock_engine.connect = AsyncMock()
 mock_engine.begin = AsyncMock()
 mock_engine.dispose = MagicMock()
 
-# Мокаем сессию
 mock_session = AsyncMock()
 
-# Важно: настраиваем асинхронные методы на возврат None, а не другого мока
 mock_session.add = MagicMock()
 mock_session.commit = AsyncMock(return_value=None)
 mock_session.refresh = AsyncMock(return_value=None)
 mock_session.execute = AsyncMock(return_value=None)
 
-# Side effect для refresh - устанавливаем id объекту
 async def refresh_side_effect(instance, *args, **kwargs):
     instance.id = 1  # Устанавливаем id
 

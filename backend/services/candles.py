@@ -1,13 +1,15 @@
 import asyncio
+
 import httpx
 import pandas as pd
 
 from core.logging import get_logger
 from core.settings import get_bybit_url
-from state.memory import candles
 from services.indicators import recalc_all_indicators
+from state.memory import candles
 
 _logger = get_logger("CandlesService")
+
 
 async def fetch_candles():
     _logger.debug(f"Starting catch candles")
@@ -35,6 +37,7 @@ async def fetch_candles():
 
     _logger.debug(f"Finish catch candles, catched {len(df)} candles")
     await recalc_all_indicators()
+
 
 async def candle_loop():
     while True:

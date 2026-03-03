@@ -1,11 +1,11 @@
-import pandas as pd
 import numpy as np
-from state.memory import candles
-from utils.constants import Indicators
-from core.logging import get_logger
-class IndicatorsCalculator: 
-    _logger = get_logger("IndicatorCalculator")
 
+from core.logging import get_logger
+from utils.constants import Indicators
+
+
+class IndicatorsCalculator:
+    _logger = get_logger("IndicatorCalculator")
 
     @staticmethod
     def calc_sma(series, period):
@@ -20,7 +20,6 @@ class IndicatorsCalculator:
         weights = np.arange(1, period + 1)
         return series.rolling(window=period).apply(lambda x: np.dot(x, weights) / weights.sum(), raw=True)
 
-    
     @classmethod
     def calculate(cls, ind_type, close, period):
         values = []

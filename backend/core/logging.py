@@ -1,11 +1,12 @@
-import logging
+import json
 import logging.handlers
 import sys
-import json
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 from typing import Literal
+from typing import Optional
+
+import logging
 
 
 class LogSettings:

@@ -1,4 +1,3 @@
-import uuid
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import select, delete
 
@@ -7,6 +6,7 @@ from models.indicator import IndicatorDB
 from schemas.indicator import IndicatorCreate, IndicatorUpdate
 from services.indicators import recalc_indicator, clean
 from state.memory import candles, indicator_values
+
 
 router = APIRouter()
 
@@ -23,6 +23,7 @@ async def create_indicator(ind: IndicatorCreate):
     await recalc_indicator(db_ind)
 
     return {"id": db_ind.id} 
+
 
 @router.put("/indicator/{ind_id}")
 async def update_indicator(ind_id: int, upd: IndicatorUpdate):

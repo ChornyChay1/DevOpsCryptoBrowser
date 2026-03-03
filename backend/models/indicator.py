@@ -1,6 +1,7 @@
 from sqlalchemy import Column, String, Integer
 from core.db import Base
 
+
 class IndicatorDB(Base):
     __tablename__ = "indicators"
 
