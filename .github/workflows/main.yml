@@ -112,6 +112,8 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: ./frontend
+          build-args: |
+            REACT_APP_API_URL=http://${{ secrets.SSH_HOST }}:8000
           push: true
           tags: |
             cr.yandex/${{ secrets.YC_REGISTRY_ID }}/crypto-frontend:latest
@@ -175,8 +177,3 @@ jobs:
         working-directory: ./cloud
         run: |
           ansible-playbook -v -i inventory.ini deploy.yml -e "version=${{ github.sha }}"
-
-      - name: Run Ansible playbook
-        working-directory: ./cloud
-        run: |
-          ansible-playbook -i inventory.ini deploy.yml -e "version=${{ github.sha }}"
