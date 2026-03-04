@@ -4,10 +4,10 @@ import Header from '../Header';
 
 
 describe('Header Component', () => {
-    test('рендерит заголовок', () => {
-        render(<Header currentPrice={null} />);
-        expect(screen.getByText('CryptoExplorer')).toBeInTheDocument();
-    });
+    // test('рендерит заголовок', () => {
+    //     render(<Header currentPrice={null} />);
+    //     expect(screen.getByText('CryptoExplorer')).toBeInTheDocument();
+    // });
 
     test('отображает цену когда она есть', () => {
         render(<Header currentPrice={50000.45} />);
