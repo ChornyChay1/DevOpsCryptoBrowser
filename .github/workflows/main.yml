@@ -143,15 +143,38 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -p ${{ secrets.SSH_PORT || '22' }} ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
 
+      - name: Go to cloud directory
+        run: cd cloud
+
       - name: Create inventory file
+        working-directory: ./cloud
         run: |
           echo "[docker_hosts]" > inventory.ini
           echo "vm ansible_host=${{ secrets.SSH_HOST }} ansible_user=${{ secrets.SSH_USER }}" >> inventory.ini
+          echo "Inventory file created:"
+          cat inventory.ini
 
       - name: Create .env file with secrets
+        working-directory: ./cloud
         run: |
-          echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" > .env
-          echo "YC_TOKEN=${{ secrets.YC_TOKEN }}" >> .env
+          echo "DB_LOGIN=postgres" > .env
+          echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
+          echo "YC_REGISTRY_ID=${{ secrets.YC_REGISTRY_ID }}" >> .env
+          echo "VERSION=${{ github.sha }}" >> .env
+          echo "SERVER_IP=${{ secrets.SSH_HOST }}" >> .env
+          echo ".env file created:"
+          cat .env | grep -v PASSWORD  # показать без пароля
+
+      - name: Check files
+        working-directory: ./cloud
+        run: |
+          ls -la
+          pwd
+
+      - name: Run Ansible playbook
+        working-directory: ./cloud
+        run: |
+          ansible-playbook -v -i inventory.ini deploy.yml -e "version=${{ github.sha }}"
 
       - name: Run Ansible playbook
         working-directory: ./cloud
