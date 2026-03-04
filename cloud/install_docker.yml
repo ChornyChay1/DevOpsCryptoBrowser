@@ -1,0 +1,71 @@
+---
+- name: Установка Docker и зависимостей
+  hosts: docker_hosts
+  become: yes
+
+  tasks:
+    - name: Установка Yandex Cloud CLI
+      shell: |
+        curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash
+      args:
+        creates: /home/ubuntu/yandex-cloud/bin/yc
+      become_user: ubuntu
+      become: no
+
+    - name: Добавление yc в PATH
+      lineinfile:
+        path: /home/ubuntu/.bashrc
+        line: 'export PATH="$PATH:$HOME/yandex-cloud/bin"'
+        create: yes
+      become_user: ubuntu
+      become: no
+
+    # ----- УСТАНОВКА DOCKER -----
+    - name: Установка Docker из официального репозитория
+      shell: |
+        curl -fsSL https://get.docker.com -o get-docker.sh
+        sh get-docker.sh
+      args:
+        creates: /usr/bin/docker
+
+    - name: Добавление пользователя в группу docker
+      user:
+        name: ubuntu
+        groups: docker
+        append: yes
+
+    - name: Установка Python и pip
+      apt:
+        name:
+          - python3
+          - python3-pip
+          - python3-venv
+        state: present
+        update_cache: yes
+
+    - name: Установка Docker SDK для Python (нужно для модулей Ansible)
+      pip:
+        name: docker
+        state: present
+        executable: pip3
+
+    - name: Установка Docker Compose плагина
+      apt:
+        name: docker-compose-plugin
+        state: present
+
+    - name: Установка дополнительных полезных пакетов
+      apt:
+        name:
+          - curl
+          - git
+          - wget
+        state: present
+
+    - name: Информация о завершении
+      debug:
+        msg:
+          - "Yandex Cloud CLI установлен"
+          - "Docker установлен!"
+          - "Python библиотеки установлены"
+          - "Docker Compose плагин установлен"
