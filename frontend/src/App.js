@@ -10,6 +10,7 @@ function App() {
   const [candles, setCandles] = useState([]);
   const [indicators, setIndicators] = useState([]);
   const [loading, setLoading] = useState(false);
+  const API_URL = process.env.REACT_APP_API_URL;
 
   useEffect(() => {
     fetchData();
@@ -20,7 +21,7 @@ function App() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:8000/data');
+      const response = await fetch(`${API_URL}/data`);
       const data = await response.json();
 
       const candlesWithTime = data.candles.map((c, i) => ({
@@ -39,7 +40,7 @@ function App() {
 
   const handleAddIndicator = async (indicator) => {
     try {
-      const response = await fetch('http://localhost:8000/indicator', {
+      const response = await fetch(`${API_URL}/indicator`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(indicator)
@@ -55,7 +56,7 @@ function App() {
 
   const handleDeleteIndicator = async (id) => {
     try {
-      const response = await fetch(`http://localhost:8000/indicator/${id}`, {
+      const response = await fetch(`${API_URL}/indicator/${id}`, {
         method: 'DELETE'
       });
 
@@ -72,7 +73,7 @@ function App() {
       const indicator = indicators.find(ind => ind.id === id);
       if (!indicator) return;
 
-      const response = await fetch(`http://localhost:8000/indicator/${id}`, {
+      const response = await fetch(`${API_URL}/indicator/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -97,7 +98,7 @@ function App() {
 
   const handleUpdateIndicator = async (id, updatedData) => {
     try {
-      const response = await fetch(`http://localhost:8000/indicator/${id}`, {
+      const response = await fetch(`${API_URL}/indicator/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedData)

@@ -8,6 +8,9 @@ RUN npm ci
 
 COPY . .
 
+ARG REACT_APP_API_URL
+ENV REACT_APP_API_URL=$REACT_APP_API_URL
+
 RUN npm run build
 
 FROM node:20-alpine
@@ -20,4 +23,5 @@ COPY --from=builder /app/build ./build
 
 EXPOSE 3000
 
+# Запускаем serve
 CMD ["serve", "-s", "build", "-l", "3000"]
