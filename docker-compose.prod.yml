@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   db:
     image: postgres:16-alpine
@@ -22,7 +20,7 @@ services:
     restart: always
 
   backend:
-    image: cr.yandex/crpkl4pgojohfidok157/crypto-backend:1.0
+    image: cr.yandex/${YC_REGISTRY_ID}/crypto-backend:${VERSION}
     container_name: fastapi_app
     environment:
       DATABASE_URL: postgresql+asyncpg://${DB_LOGIN}:${DB_PASSWORD}@db:5432/crypto_db
@@ -36,12 +34,12 @@ services:
     restart: always
 
   frontend:
-    image: cr.yandex/crpkl4pgojohfidok157/crypto-frontend:1.0
+    image: cr.yandex/${YC_REGISTRY_ID}/crypto-frontend:${VERSION}
     container_name: react_app
     ports:
       - "3000:3000"
     environment:
-      REACT_APP_API_URL: http://localhost:8000
+      REACT_APP_API_URL: http://${SERVER_IP}:8000
     depends_on:
       - backend
     networks:
