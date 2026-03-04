@@ -154,5 +154,6 @@ jobs:
           echo "YC_TOKEN=${{ secrets.YC_TOKEN }}" >> .env
 
       - name: Run Ansible playbook
+        working-directory: ./cloud
         run: |
           ansible-playbook -i inventory.ini deploy.yml -e "version=${{ github.sha }}"
