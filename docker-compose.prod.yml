@@ -15,8 +15,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - app_network
     restart: always
 
   backend:
@@ -42,8 +40,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    networks:
-      - app_network
     restart: always
 
   frontend:
@@ -55,13 +51,7 @@ services:
       REACT_APP_API_URL: http://${SERVER_IP}:8000
     depends_on:
       - backend
-    networks:
-      - app_network
     restart: always
 
 volumes:
   postgres_data:
-
-networks:
-  app_network:
-    driver: bridge
