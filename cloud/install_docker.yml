@@ -1,5 +1,5 @@
 ---
-- name: Установка Docker и зависимостей
+- name: Установка Docker, Kubernetes tools и зависимостей
   hosts: docker_hosts
   become: yes
 
@@ -34,6 +34,21 @@
         groups: docker
         append: yes
 
+    - name: Установка kubectl
+      shell: |
+        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+        chmod +x kubectl
+        sudo mv kubectl /usr/local/bin/
+      args:
+        creates: /usr/local/bin/kubectl
+
+    - name: Установка Minikube
+      shell: |
+        curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+        sudo install minikube-linux-amd64 /usr/local/bin/minikube
+      args:
+        creates: /usr/local/bin/minikube
+
     - name: Установка Python и pip
       apt:
         name:
@@ -43,7 +58,7 @@
         state: present
         update_cache: yes
 
-    - name: Установка Docker SDK для Python (нужно для модулей Ansible)
+    - name: Установка Docker SDK для Python
       pip:
         name: docker
         state: present
@@ -60,12 +75,37 @@
           - curl
           - git
           - wget
+          - conntrack
         state: present
+
+    - name: Запуск Minikube кластера
+      shell: |
+        minikube start --driver=docker --cpus=4 --memory=8192
+      become_user: ubuntu
+      become: no
+      register: minikube_start
+      changed_when: false
+
+    - name: Проверка статуса кластера
+      shell: |
+        kubectl get nodes
+      become_user: ubuntu
+      become: no
+      register: kubectl_nodes
+      changed_when: false
 
     - name: Информация о завершении
       debug:
         msg:
           - "Yandex Cloud CLI установлен"
           - "Docker установлен!"
-          - "Python библиотеки установлены"
-          - "Docker Compose плагин установлен"
+          - "kubectl установлен"
+          - "Minikube установлен и запущен"
+          - "Kubernetes кластер готов!"
+          - ""
+          - "Проверка узлов:"
+          - "{{ kubectl_nodes.stdout_lines }}"
+          - ""
+          - "Команды для проверки:"
+          - "   kubectl get pods -A"
+          - "   minikube dashboard"

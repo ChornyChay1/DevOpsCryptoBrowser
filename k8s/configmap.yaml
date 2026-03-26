@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: crypto-app
+data:
+  DB_NAME: "crypto_db"
+  DB_USER: "postgres"
+  DB_PASSWORD: "postgres123"
+  APP_ENV: "production"
