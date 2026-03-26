@@ -1,0 +1,120 @@
+---
+- name: Деплой в Kubernetes
+  hosts: docker_hosts
+  become: yes
+  vars:
+    version: "{{ version | default('1.0') }}"
+    registry: "cr.yandex/crpkl4pgojohfidok157"
+    namespace: "crypto-app"
+    # Токен передаётся из GitHub Secrets
+    yc_oauth_token: "{{ yc_oauth_token | default('') }}"
+
+  tasks:
+    # ----- ПРОВЕРКА КЛАСТЕРА -----
+    - name: Проверка что кластер готов
+      shell: kubectl get nodes
+      become_user: ubuntu
+      become: no
+      register: nodes_status
+      changed_when: false
+
+    - name: Информация о кластере
+      debug:
+        msg: "K8s кластер готов: {{ nodes_status.stdout_lines }}"
+
+    - name: Создание секрета для доступа к реестру
+      shell: |
+        kubectl create secret docker-registry yandex-cr \
+          --namespace={{ namespace }} \
+          --docker-server=cr.yandex \
+          --docker-username=oauth \
+          --docker-password="{{ yc_oauth_token }}" \
+          --dry-run=client -o yaml | kubectl apply -f -
+      become_user: ubuntu
+      become: no
+      when: yc_oauth_token != ""
+
+    - name: Проверка секрета
+      shell: kubectl get secret yandex-cr -n {{ namespace }} -o jsonpath='{.type}'
+      become_user: ubuntu
+      become: no
+      register: secret_status
+      changed_when: false
+
+    - name: Результат
+      debug:
+        msg: "Секрет 'yandex-cr' создан: {{ secret_status.stdout }}"
+
+    - name: Копирование манифестов на сервер
+      synchronize:
+        src: ../k8s/
+        dest: /opt/k8s-manifests/
+        delete: yes
+      delegate_to: localhost
+
+    - name: Применение всех манифестов
+      shell: |
+        kubectl apply -f /opt/k8s-manifests/
+      become_user: ubuntu
+      become: no
+      register: apply_result
+
+    - name: Результат применения
+      debug:
+        msg: "{{ apply_result.stdout_lines }}"
+
+    - name: Ожидание готовности подов
+      shell: |
+        kubectl wait --for=condition=ready pod \
+          --all \
+          --namespace={{ namespace }} \
+          --timeout=120s
+      become_user: ubuntu
+      become: no
+      register: wait_result
+      ignore_errors: yes
+
+    - name: Статус подов
+      shell: kubectl get pods -n {{ namespace }}
+      become_user: ubuntu
+      become: no
+      register: pods_status
+
+    - name: Поды
+      debug:
+        msg: "{{ pods_status.stdout_lines }}"
+
+    - name: Статус сервисов
+      shell: kubectl get svc -n {{ namespace }}
+      become_user: ubuntu
+      become: no
+      register: svc_status
+
+    - name: Сервисы
+      debug:
+        msg: "{{ svc_status.stdout_lines }}"
+
+    - name: Статус HPA
+      shell: kubectl get hpa -n {{ namespace }}
+      become_user: ubuntu
+      become: no
+      register: hpa_status
+      ignore_errors: yes
+
+    - name: HPA
+      debug:
+        msg: "{{ hpa_status.stdout_lines }}"
+      when: hpa_status is success
+
+    - name: Финальная информация
+      debug:
+        msg:
+          - "Деплой в Kubernetes завершён!"
+          - ""
+          - "Namespace: {{ namespace }}"
+          - "Секрет для Registry: создан"
+          - ""
+          - "Проверка:"
+          - "   kubectl get pods -n {{ namespace }}"
+          - "   kubectl get svc -n {{ namespace }}"
+          - "   kubectl get hpa -n {{ namespace }}"
