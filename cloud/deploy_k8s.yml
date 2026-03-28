@@ -6,7 +6,6 @@
     version: "{{ version | default('1.0') }}"
     registry: "cr.yandex/crpkl4pgojohfidok157"
     namespace: "crypto-app"
-    # Токен передаётся из GitHub Secrets
     yc_oauth_token: "{{ yc_oauth_token | default('') }}"
 
   tasks:
@@ -20,8 +19,9 @@
 
     - name: Информация о кластере
       debug:
-        msg: "K8s кластер готов: {{ nodes_status.stdout_lines }}"
+        msg: "✅ K8s кластер готов: {{ nodes_status.stdout_lines }}"
 
+    # ----- СОЗДАНИЕ СЕКРЕТА ДЛЯ YANDEX REGISTRY -----
     - name: Создание секрета для доступа к реестру
       shell: |
         kubectl create secret docker-registry yandex-cr \
@@ -43,15 +43,25 @@
 
     - name: Результат
       debug:
-        msg: "Секрет 'yandex-cr' создан: {{ secret_status.stdout }}"
+        msg: "✅ Секрет 'yandex-cr' создан: {{ secret_status.stdout }}"
 
-    - name: Копирование манифестов на сервер
-      synchronize:
-        src: ../k8s/
-        dest: /opt/k8s-manifests/
-        delete: yes
+    # ----- КОПИРОВАНИЕ МАНИФЕСТОВ -----
+    - name: Создание папки для манифестов
+      file:
+        path: /opt/k8s-manifests
+        state: directory
+        mode: '0755'
+
+    - name: Копирование манифестов
+      copy:
+        src: "{{ item }}"
+        dest: "/opt/k8s-manifests/{{ item | basename }}"
+        mode: '0644'
+      loop: "{{ lookup('fileglob', '../k8s/*.yaml', wantlist=True) }}"
       delegate_to: localhost
+      become: no
 
+    # ----- ПРИМЕНЕНИЕ МАНИФЕСТОВ -----
     - name: Применение всех манифестов
       shell: |
         kubectl apply -f /opt/k8s-manifests/
@@ -63,6 +73,7 @@
       debug:
         msg: "{{ apply_result.stdout_lines }}"
 
+    # ----- ОЖИДАНИЕ ГОТОВНОСТИ -----
     - name: Ожидание готовности подов
       shell: |
         kubectl wait --for=condition=ready pod \
@@ -74,15 +85,34 @@
       register: wait_result
       ignore_errors: yes
 
+    # ----- ПОЛУЧЕНИЕ IP ДЛЯ ДОСТУПА -----
+    - name: Получение публичного IP ВМ
+      set_fact:
+        vm_ip: "{{ hostvars[inventory_hostname].ansible_host }}"
+
+    - name: Получение порта фронтенда
+      shell: |
+        kubectl get svc frontend -n {{ namespace }} -o jsonpath='{.spec.ports[0].nodePort}'
+      become_user: ubuntu
+      become: no
+      register: frontend_port
+      changed_when: false
+
+    - name: Получение порта бэкенда
+      shell: |
+        kubectl get svc backend -n {{ namespace }} -o jsonpath='{.spec.ports[0].nodePort}'
+      become_user: ubuntu
+      become: no
+      register: backend_port
+      changed_when: false
+      ignore_errors: yes
+
+    # ----- СТАТУСЫ -----
     - name: Статус подов
       shell: kubectl get pods -n {{ namespace }}
       become_user: ubuntu
       become: no
       register: pods_status
-
-    - name: Поды
-      debug:
-        msg: "{{ pods_status.stdout_lines }}"
 
     - name: Статус сервисов
       shell: kubectl get svc -n {{ namespace }}
@@ -90,31 +120,23 @@
       become: no
       register: svc_status
 
-    - name: Сервисы
-      debug:
-        msg: "{{ svc_status.stdout_lines }}"
-
-    - name: Статус HPA
-      shell: kubectl get hpa -n {{ namespace }}
-      become_user: ubuntu
-      become: no
-      register: hpa_status
-      ignore_errors: yes
-
-    - name: HPA
-      debug:
-        msg: "{{ hpa_status.stdout_lines }}"
-      when: hpa_status is success
-
+    # ----- ФИНАЛЬНЫЙ ВЫВОД -----
     - name: Финальная информация
       debug:
         msg:
-          - "Деплой в Kubernetes завершён!"
           - ""
-          - "Namespace: {{ namespace }}"
-          - "Секрет для Registry: создан"
+          - "🎉 Деплой в Kubernetes завершён!"
+          - "====================================="
           - ""
-          - "Проверка:"
+          - "📊 Namespace: {{ namespace }}"
+          - "🔐 Секрет для Registry: создан"
+          - ""
+          - "🌐 ПРИЛОЖЕНИЕ ДОСТУПНО ПО АДРЕСАМ:"
+          - "   📱 FRONTEND: http://{{ vm_ip }}:{{ frontend_port.stdout }}"
+          - "   🔧 BACKEND:  http://{{ vm_ip }}:{{ backend_port.stdout | default('не настроен') }}"
+          - "   📚 API Docs: http://{{ vm_ip }}:{{ backend_port.stdout }}/docs"
+          - ""
+          - "🔧 Проверка:"
           - "   kubectl get pods -n {{ namespace }}"
           - "   kubectl get svc -n {{ namespace }}"
           - "   kubectl get hpa -n {{ namespace }}"

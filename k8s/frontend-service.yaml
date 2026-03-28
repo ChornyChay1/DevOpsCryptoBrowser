@@ -4,9 +4,10 @@ metadata:
   name: frontend
   namespace: crypto-app
 spec:
+  type: NodePort
   selector:
     app: frontend
   ports:
   - port: 3000
     targetPort: 3000
-  type: ClusterIP
+    nodePort: 30080
