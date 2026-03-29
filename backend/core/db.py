@@ -6,6 +6,7 @@ from core.settings import getDatabaseUrl
 
 def get_engine():
     database_url = getDatabaseUrl()
+    print("DATABASE_URL: ", database_url)
     if not database_url:
         raise RuntimeError("DATABASE_URL not set")
     return create_async_engine(database_url, echo=False)
