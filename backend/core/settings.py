@@ -6,7 +6,11 @@ load_dotenv()
 
 
 def getDatabaseUrl():
-    return os.getenv("DATABASE_URL")
+    user = os.getenv("POSTGRES_USER")
+    password = os.getenv("POSTGRES_PASSWORD")
+    db = os.getenv("POSTGRES_DB")
+    DATABASE_URL = f"postgresql+asyncpg://{user}:{password}@postgres:5432/{db}"
+    return DATABASE_URL
 
 
 def get_bybit_url():
