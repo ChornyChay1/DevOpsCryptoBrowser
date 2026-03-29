@@ -156,7 +156,7 @@ jobs:
       - name: Deploy to Kubernetes
         working-directory: ./cloud
         run: |
-          ansible-playbook -i inventory.ini deploy_k8s.yml \
+          ansible-playbook -i inventory.ini deploy.yml \
             -e "yc_oauth_token=${{ secrets.YC_TOKEN }}" \
             -e "version=${{ github.sha }}" \
             -e "db_password=${{ secrets.DB_PASSWORD }}"
