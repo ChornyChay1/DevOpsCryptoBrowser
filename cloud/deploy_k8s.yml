@@ -45,6 +45,30 @@
       debug:
         msg: "✅ Секрет 'yandex-cr' создан: {{ secret_status.stdout }}"
 
+    # ----- СОЗДАНИЕ СЕКРЕТА ДЛЯ POSTGRES -----
+    - name: Создание секрета для PostgreSQL
+      shell: |
+        kubectl create secret generic postgres-secret \
+          --namespace={{ namespace }} \
+          --from-literal=POSTGRES_DB=crypto_db \
+          --from-literal=POSTGRES_USER=postgres \
+          --from-literal=POSTGRES_PASSWORD=postgres\
+          --dry-run=client -o yaml | kubectl apply -f -
+      become_user: ubuntu
+      become: no
+      when: db_password is defined and db_password != ""
+
+    - name: Проверка postgres секрета
+      shell: kubectl get secret postgres-secret -n {{ namespace }} -o jsonpath='{.type}'
+      become_user: ubuntu
+      become: no
+      register: postgres_secret_status
+      changed_when: false
+
+    - name: Результат postgres секрета
+      debug:
+        msg: "✅ Секрет 'postgres-secret' создан: {{ postgres_secret_status.stdout }}"
+
     # ----- КОПИРОВАНИЕ МАНИФЕСТОВ -----
     - name: Создание папки для манифестов
       file:
@@ -58,8 +82,6 @@
         dest: "/opt/k8s-manifests/{{ item | basename }}"
         mode: '0644'
       loop: "{{ lookup('fileglob', '../k8s/*.yaml', wantlist=True) }}"
-      delegate_to: localhost
-      become: no
 
     # ----- ПРИМЕНЕНИЕ МАНИФЕСТОВ -----
     - name: Применение всех манифестов
