@@ -3,7 +3,10 @@ kind: Ingress
 metadata:
   name: crypto-app-ingress
   namespace: crypto-app
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
 spec:
+  ingressClassName: nginx
   rules:
   - host: crypto.local
     http:
@@ -14,7 +17,7 @@ spec:
           service:
             name: frontend
             port:
-              number: 3000
+              number: 80
       - path: /api
         pathType: Prefix
         backend:

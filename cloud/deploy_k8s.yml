@@ -52,11 +52,10 @@
           --namespace={{ namespace }} \
           --from-literal=POSTGRES_DB=crypto_db \
           --from-literal=POSTGRES_USER=postgres \
-          --from-literal=POSTGRES_PASSWORD=postgres\
+          --from-literal=POSTGRES_PASSWORD=postgres \
           --dry-run=client -o yaml | kubectl apply -f -
       become_user: ubuntu
       become: no
-      when: db_password is defined and db_password != ""
 
     - name: Проверка postgres секрета
       shell: kubectl get secret postgres-secret -n {{ namespace }} -o jsonpath='{.type}'
@@ -141,6 +140,34 @@
       become_user: ubuntu
       become: no
       register: svc_status
+
+    # ----- ЗАПУСК ПОРТ-ФОРВАРДИНГА -----
+    - name: Запуск порт-форвардинга для фронтенда
+      shell: |
+        nohup kubectl port-forward -n {{ namespace }} svc/frontend {{ frontend_port.stdout }}:3000 --address 0.0.0.0 > /tmp/frontend-forward.log 2>&1 &
+      become_user: ubuntu
+      become: no
+      when: frontend_port.stdout is defined and frontend_port.stdout != ""
+
+    - name: Запуск порт-форвардинга для бэкенда
+      shell: |
+        nohup kubectl port-forward -n {{ namespace }} svc/backend {{ backend_port.stdout }}:8000 --address 0.0.0.0 > /tmp/backend-forward.log 2>&1 &
+      become_user: ubuntu
+      become: no
+      when: backend_port.stdout is defined and backend_port.stdout != ""
+
+    - name: Проверка порт-форвардинга
+      shell: |
+        sleep 2
+        sudo ss -tlnp | grep -E "{{ frontend_port.stdout }}|{{ backend_port.stdout }}"
+      become_user: ubuntu
+      become: no
+      register: port_check
+      changed_when: false
+
+    - name: Результат порт-форвардинга
+      debug:
+        msg: "✅ Порт-форвардинг запущен: {{ port_check.stdout_lines }}"
 
     # ----- ФИНАЛЬНЫЙ ВЫВОД -----
     - name: Финальная информация
