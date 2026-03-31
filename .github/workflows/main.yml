@@ -114,7 +114,7 @@ jobs:
         with:
           context: ./frontend
           build-args: |
-            REACT_APP_API_URL=http://backend:8000
+            REACT_APP_API_URL=backend.crypto-app.svc.cluster.local
           push: true
           tags: |
             cr.yandex/${{ secrets.YC_REGISTRY_ID }}/crypto-frontend:latest
