@@ -150,10 +150,9 @@
 
     - name: Запуск порт-форвардинга для бэкенда
       shell: |
-        nohup kubectl port-forward -n {{ namespace }} svc/backend {{ backend_port.stdout }}:8000 --address 0.0.0.0 > /tmp/backend-forward.log 2>&1 &
+        nohup kubectl port-forward -n {{ namespace }} svc/backend 8000:8000 --address 0.0.0.0 > /dev/null 2>&1 &
       become_user: ubuntu
       become: no
-      when: backend_port.stdout is defined and backend_port.stdout != ""
 
     - name: Проверка порт-форвардинга
       shell: |
