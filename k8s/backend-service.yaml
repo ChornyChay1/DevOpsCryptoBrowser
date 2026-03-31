@@ -4,10 +4,9 @@ metadata:
   name: backend
   namespace: crypto-app
 spec:
-  type: NodePort        # ← меняем здесь
+  type: ClusterIP
   selector:
     app: backend
   ports:
   - port: 8000
     targetPort: 8000
-    nodePort: 30081     # ← добавляем порт
