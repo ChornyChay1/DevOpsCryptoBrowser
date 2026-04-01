@@ -1,0 +1,92 @@
+---
+- name: Полная очистка сервера
+  hosts: docker_hosts
+  become: yes
+  vars:
+    namespace: "crypto-app"
+
+  tasks:
+    # ----- ОСТАНОВКА И УДАЛЕНИЕ KUBERNETES -----
+    - name: Остановка порт-форвардинга
+      shell: pkill -f "kubectl port-forward"
+      ignore_errors: yes
+
+    - name: Удаление всех ресурсов в namespace
+      shell: |
+        kubectl delete all --all -n {{ namespace }}
+        kubectl delete pvc --all -n {{ namespace }}
+        kubectl delete configmap --all -n {{ namespace }}
+        kubectl delete secret --all -n {{ namespace }}
+        kubectl delete ingress --all -n {{ namespace }}
+      ignore_errors: yes
+
+    - name: Удаление namespace
+      shell: kubectl delete namespace {{ namespace }}
+      ignore_errors: yes
+
+    - name: Остановка Minikube
+      shell: minikube stop
+      ignore_errors: yes
+
+    - name: Удаление Minikube
+      shell: minikube delete --purge
+      ignore_errors: yes
+
+    # ----- ОЧИСТКА DOCKER -----
+    - name: Остановка всех контейнеров
+      shell: docker stop $(docker ps -aq)
+      ignore_errors: yes
+
+    - name: Удаление всех контейнеров
+      shell: docker rm $(docker ps -aq)
+      ignore_errors: yes
+
+    - name: Удаление всех образов
+      shell: docker rmi $(docker images -q)
+      ignore_errors: yes
+
+    - name: Полная очистка Docker
+      shell: docker system prune -a -f --volumes
+      ignore_errors: yes
+
+    # ----- УДАЛЕНИЕ ФАЙЛОВ -----
+    - name: Удаление папки с манифестами
+      file:
+        path: /opt/k8s-manifests
+        state: absent
+
+    - name: Удаление папки с проектом
+      file:
+        path: /opt/crypto
+        state: absent
+
+    - name: Удаление временных файлов
+      shell: |
+        rm -rf /tmp/*.log
+        rm -rf /tmp/kubectl*
+        rm -rf ~/.minikube
+      ignore_errors: yes
+
+    # ----- ИНФОРМАЦИЯ -----
+    - name: Проверка оставшихся контейнеров
+      shell: docker ps -a
+      register: containers
+      ignore_errors: yes
+
+    - name: Проверка оставшихся образов
+      shell: docker images
+      register: images
+      ignore_errors: yes
+
+    - name: Результат очистки
+      debug:
+        msg:
+          - "🧹 Очистка завершена!"
+          - ""
+          - "📊 Оставшиеся контейнеры:"
+          - "{{ containers.stdout_lines | default(['Нет']) }}"
+          - ""
+          - "📊 Оставшиеся образы:"
+          - "{{ images.stdout_lines | default(['Нет']) }}"
+          - ""
+          - "✅ Сервер готов к новой установке!"

@@ -141,28 +141,6 @@
       become: no
       register: svc_status
 
-    # ----- ЗАПУСК ПОРТ-ФОРВАРДИНГА -----
-    - name: Запуск порт-форвардинга для фронтенда
-      shell: |
-        nohup kubectl port-forward -n {{ namespace }} svc/frontend {{ frontend_port.stdout }}:80 --address 0.0.0.0 > /tmp/frontend-forward.log 2>&1 &
-      become_user: ubuntu
-      become: no
-
-    - name: Запуск порт-форвардинга для бэкенда
-      shell: |
-        nohup kubectl port-forward -n {{ namespace }} svc/backend 8000:8000 --address 0.0.0.0 > /dev/null 2>&1 &
-      become_user: ubuntu
-      become: no
-
-    - name: Проверка порт-форвардинга
-      shell: |
-        sleep 2
-        sudo ss -tlnp | grep -E "{{ frontend_port.stdout }}|{{ backend_port.stdout }}"
-      become_user: ubuntu
-      become: no
-      register: port_check
-      changed_when: false
-
     - name: Результат порт-форвардинга
       debug:
         msg: "✅ Порт-форвардинг запущен: {{ port_check.stdout_lines }}"
