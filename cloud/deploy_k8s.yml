@@ -9,155 +9,97 @@
     yc_oauth_token: "{{ yc_oauth_token | default('') }}"
 
   tasks:
-    # ----- ПРОВЕРКА КЛАСТЕРА -----
-    - name: Проверка что кластер готов
+    - name: Проверка кластера
       shell: kubectl get nodes
       become_user: ubuntu
       become: no
       register: nodes_status
       changed_when: false
 
-    - name: Информация о кластере
-      debug:
-        msg: "✅ K8s кластер готов: {{ nodes_status.stdout_lines }}"
+    - name: Создание секретов
+      block:
+        - name: Yandex Registry
+          shell: |
+            kubectl create secret docker-registry yandex-cr \
+              --namespace={{ namespace }} \
+              --docker-server=cr.yandex \
+              --docker-username=oauth \
+              --docker-password="{{ yc_oauth_token }}" \
+              --dry-run=client -o yaml | kubectl apply -f -
+          when: yc_oauth_token != ""
 
-    # ----- СОЗДАНИЕ СЕКРЕТА ДЛЯ YANDEX REGISTRY -----
-    - name: Создание секрета для доступа к реестру
+        - name: PostgreSQL
+          shell: |
+            kubectl create secret generic postgres-secret \
+              --namespace={{ namespace }} \
+              --from-literal=POSTGRES_DB=crypto_db \
+              --from-literal=POSTGRES_USER=postgres \
+              --from-literal=POSTGRES_PASSWORD=postgres \
+              --dry-run=client -o yaml | kubectl apply -f -
+      become_user: ubuntu
+      become: no
+
+    - name: Очистка Docker (кроме Minikube)
       shell: |
-        kubectl create secret docker-registry yandex-cr \
-          --namespace={{ namespace }} \
-          --docker-server=cr.yandex \
-          --docker-username=oauth \
-          --docker-password="{{ yc_oauth_token }}" \
-          --dry-run=client -o yaml | kubectl apply -f -
-      become_user: ubuntu
-      become: no
-      when: yc_oauth_token != ""
-
-    - name: Проверка секрета
-      shell: kubectl get secret yandex-cr -n {{ namespace }} -o jsonpath='{.type}'
-      become_user: ubuntu
-      become: no
-      register: secret_status
-      changed_when: false
-
-    - name: Результат
-      debug:
-        msg: "✅ Секрет 'yandex-cr' создан: {{ secret_status.stdout }}"
-
-    # ----- СОЗДАНИЕ СЕКРЕТА ДЛЯ POSTGRES -----
-    - name: Создание секрета для PostgreSQL
-      shell: |
-        kubectl create secret generic postgres-secret \
-          --namespace={{ namespace }} \
-          --from-literal=POSTGRES_DB=crypto_db \
-          --from-literal=POSTGRES_USER=postgres \
-          --from-literal=POSTGRES_PASSWORD=postgres \
-          --dry-run=client -o yaml | kubectl apply -f -
-      become_user: ubuntu
-      become: no
-
-    - name: Проверка postgres секрета
-      shell: kubectl get secret postgres-secret -n {{ namespace }} -o jsonpath='{.type}'
-      become_user: ubuntu
-      become: no
-      register: postgres_secret_status
-      changed_when: false
-
-    - name: Результат postgres секрета
-      debug:
-        msg: "✅ Секрет 'postgres-secret' создан: {{ postgres_secret_status.stdout }}"
-
-    # ----- КОПИРОВАНИЕ МАНИФЕСТОВ -----
-    - name: Создание папки для манифестов
-      file:
-        path: /opt/k8s-manifests
-        state: directory
-        mode: '0755'
-
-    - name: Копирование манифестов
-      copy:
-        src: "{{ item }}"
-        dest: "/opt/k8s-manifests/{{ item | basename }}"
-        mode: '0644'
-      loop: "{{ lookup('fileglob', '../k8s/*.yaml', wantlist=True) }}"
-
-    # ----- ПРИМЕНЕНИЕ МАНИФЕСТОВ -----
-    - name: Применение всех манифестов
-      shell: |
-        kubectl apply -f /opt/k8s-manifests/
-      become_user: ubuntu
-      become: no
-      register: apply_result
-
-    - name: Результат применения
-      debug:
-        msg: "{{ apply_result.stdout_lines }}"
-
-    # ----- ОЖИДАНИЕ ГОТОВНОСТИ -----
-    - name: Ожидание готовности подов
-      shell: |
-        kubectl wait --for=condition=ready pod \
-          --all \
-          --namespace={{ namespace }} \
-          --timeout=120s
-      become_user: ubuntu
-      become: no
-      register: wait_result
+        docker stop $(docker ps -q | grep -v $(docker ps -q --filter "name=minikube")) 2>/dev/null || true
+        docker rm $(docker ps -aq | grep -v $(docker ps -aq --filter "name=minikube")) 2>/dev/null || true
+        docker rmi $(docker images -q) 2>/dev/null || true
+        docker system prune -a -f --volumes 2>/dev/null || true
       ignore_errors: yes
 
-    # ----- ПОЛУЧЕНИЕ IP ДЛЯ ДОСТУПА -----
-    - name: Получение публичного IP ВМ
-      set_fact:
-        vm_ip: "{{ hostvars[inventory_hostname].ansible_host }}"
+    - name: Применение манифестов
+      block:
+        - name: Создание папки
+          file:
+            path: /opt/k8s-manifests
+            state: directory
+            mode: '0755'
 
-    - name: Получение порта фронтенда
-      shell: |
-        kubectl get svc frontend -n {{ namespace }} -o jsonpath='{.spec.ports[0].nodePort}'
+        - name: Копирование манифестов
+          copy:
+            src: "{{ item }}"
+            dest: "/opt/k8s-manifests/{{ item | basename }}"
+            mode: '0644'
+          loop: "{{ lookup('fileglob', '../k8s/*.yaml', wantlist=True) }}"
+
+        - name: kubectl apply
+          shell: kubectl apply -f /opt/k8s-manifests/
+          become_user: ubuntu
+          become: no
+
+        - name: Ожидание подов
+          shell: kubectl wait --for=condition=ready pod --all --namespace={{ namespace }} --timeout=120s
+          become_user: ubuntu
+          become: no
+          ignore_errors: yes
       become_user: ubuntu
       become: no
-      register: frontend_port
-      changed_when: false
 
-    - name: Получение порта бэкенда
-      shell: |
-        kubectl get svc backend -n {{ namespace }} -o jsonpath='{.spec.ports[0].nodePort}'
+    - name: Настройка доступа
+      block:
+        - name: Получение IP и портов
+          set_fact:
+            vm_ip: "{{ hostvars[inventory_hostname].ansible_host }}"
+            frontend_port: "{{ lookup('k8s', kind='Service', namespace=namespace, resource_name='frontend').spec.ports[0].nodePort }}"
+            backend_port: "{{ lookup('k8s', kind='Service', namespace=namespace, resource_name='backend').spec.ports[0].nodePort | default('') }}"
+
+        - name: Запуск порт-форвардинга
+          shell: |
+            pkill -f "kubectl port-forward" 2>/dev/null || true
+            nohup kubectl port-forward -n {{ namespace }} svc/frontend {{ frontend_port }}:80 --address 0.0.0.0 > /tmp/frontend-fwd.log 2>&1 &
+            nohup kubectl port-forward -n {{ namespace }} svc/backend 8000:8000 --address 0.0.0.0 > /dev/null 2>&1 &
+          become_user: ubuntu
+          become: no
+          changed_when: false
+
+        - name: Проверка портов
+          shell: sleep 2 && sudo ss -tlnp | grep -E "{{ frontend_port }}|8000"
+          register: port_check
+          changed_when: false
       become_user: ubuntu
       become: no
-      register: backend_port
-      changed_when: false
-      ignore_errors: yes
 
-    # ----- СТАТУСЫ -----
-    - name: Статус подов
-      shell: kubectl get pods -n {{ namespace }}
-      become_user: ubuntu
-      become: no
-      register: pods_status
-
-    - name: Статус сервисов
-      shell: kubectl get svc -n {{ namespace }}
-      become_user: ubuntu
-      become: no
-      register: svc_status
-
-    # ----- ФИНАЛЬНЫЙ ВЫВОД -----
-    - name: Финальная информация
+    - name: Финальный вывод
       debug:
-        msg:
-          - ""
-          - "🎉 Деплой в Kubernetes завершён!"
-          - "====================================="
-          - ""
-          - "📊 Namespace: {{ namespace }}"
-          - "🔐 Секрет для Registry: создан"
-          - ""
-          - "🌐 ПРИЛОЖЕНИЕ ДОСТУПНО ПО АДРЕСАМ:"
-          - "   📱 FRONTEND: http://{{ vm_ip }}:{{ frontend_port.stdout }}"
-          - "   🔧 BACKEND:  http://{{ vm_ip }}:{{ backend_port.stdout | default('не настроен') }}"
-          - "   📚 API Docs: http://{{ vm_ip }}:{{ backend_port.stdout }}/docs"
-          - ""
-          - "🔧 Проверка:"
-          - "   kubectl get pods -n {{ namespace }}"
-          - "   kubectl get svc -n {{ namespace }}"
-          - "   kubectl get hpa -n {{ namespace }}"
+        msg: |
+          Успешно. Деплой завершен

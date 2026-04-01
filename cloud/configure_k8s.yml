@@ -6,94 +6,35 @@
     namespace: "crypto-app"
 
   tasks:
-    # ----- ПРОВЕРКА KUBERNETES -----
-    - name: Проверка что кластер готов
+    - name: Проверка кластера
       shell: kubectl get nodes
       become_user: ubuntu
       become: no
       register: nodes_status
       changed_when: false
 
-    - name: Информация о кластере
-      debug:
-        msg: "✅ K8s кластер готов: {{ nodes_status.stdout_lines }}"
-
-    # ----- СОЗДАНИЕ NAMESPACE -----
     - name: Создание namespace
       shell: |
         kubectl create namespace {{ namespace }} --dry-run=client -o yaml | kubectl apply -f -
       become_user: ubuntu
       become: no
 
-    - name: Проверка namespace
-      shell: kubectl get namespace {{ namespace }} -o jsonpath='{.status.phase}'
-      become_user: ubuntu
-      become: no
-      register: ns_status
-      changed_when: false
-
-    - name: Результат
-      debug:
-        msg: "✅ Namespace '{{ namespace }}' создан: {{ ns_status.stdout }}"
-
-    # ----- ВКЛЮЧЕНИЕ АДДОНОВ -----
-    - name: Включение ingress
-      shell: minikube addons enable ingress
-      become_user: ubuntu
-      become: no
-      register: ingress_enable
-      changed_when: false
-
-    - name: Включение metrics-server (для HPA)
+    - name: Включение metrics-server
       shell: minikube addons enable metrics-server
       become_user: ubuntu
       become: no
-      register: metrics_enable
       changed_when: false
 
-    - name: Проверка аддонов
-      shell: minikube addons list | grep -E "ingress|metrics-server"
-      become_user: ubuntu
-      become: no
-      register: addons_list
-      changed_when: false
-
-    - name: Результат
-      debug:
-        msg: "{{ addons_list.stdout_lines }}"
-
-    - name: Принудительный рестарт подов для применения новых образов
-      shell: |
-        kubectl rollout restart deployment/frontend -n {{ namespace }}
-        kubectl rollout restart deployment/backend -n {{ namespace }}
-      become_user: ubuntu
-      become: no
-
-    - name: Ожидание готовности после рестарта
-      shell: |
-        kubectl rollout status deployment/frontend -n {{ namespace }} --timeout=120s
-        kubectl rollout status deployment/backend -n {{ namespace }} --timeout=120s
-      become_user: ubuntu
-      become: no
-      ignore_errors: yes
-
-    # ----- ИТОГОВАЯ ИНФОРМАЦИЯ -----
-    - name: Статус всех подов в kube-system
+    - name: Статус подов
       shell: kubectl get pods -n kube-system
       become_user: ubuntu
       become: no
       register: pods_status
       changed_when: false
 
-    - name: Финальный вывод
+    - name: Результат
       debug:
-        msg:
-          - "Kubernetes настроен!"
-          - ""
-          - "Namespace: {{ namespace }}"
-          - "Аддоны: ingress, metrics-server включены"
-          - ""
-          - "Проверка:"
-          - "   kubectl get nodes"
-          - "   kubectl get pods -n kube-system"
-          - "   kubectl get namespace {{ namespace }}"
+        msg: |
+          Kubernetes настроен
+          Namespace: {{ namespace }}
+          Проверка: kubectl get pods -n kube-system
