@@ -141,10 +141,6 @@
       become: no
       register: svc_status
 
-    - name: Результат порт-форвардинга
-      debug:
-        msg: "✅ Порт-форвардинг запущен: {{ port_check.stdout_lines }}"
-
     # ----- ФИНАЛЬНЫЙ ВЫВОД -----
     - name: Финальная информация
       debug:
