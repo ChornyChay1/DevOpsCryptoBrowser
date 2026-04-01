@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-and-test:
+  build:
     runs-on: ubuntu-latest
     if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
     steps:
@@ -25,8 +25,51 @@ jobs:
 
       - name: Backend install
         working-directory: ./backend
-        run: |
-          pip install -r requirements.txt
+        run: pip install -r requirements.txt
+
+      - name: Frontend install
+        working-directory: ./frontend
+        run: npm install
+
+      - name: Upload backend deps
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-deps
+          path: ./backend/venv
+
+      - name: Upload frontend deps
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-deps
+          path: ./frontend/node_modules
+
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Download backend deps
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-deps
+          path: ./backend
+
+      - name: Download frontend deps
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-deps
+          path: ./frontend
 
       - name: Backend test
         working-directory: ./backend
@@ -44,16 +87,12 @@ jobs:
           echo "LOG_FILE_BACKUP_COUNT=5" >> .env
           pytest tests/ -v
 
-      - name: Frontend install
-        working-directory: ./frontend
-        run: npm install
-
       - name: Frontend test
         working-directory: ./frontend
         run: npm test -- --watchAll=false
 
   docker:
-    needs: build-and-test
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -102,7 +141,7 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -p ${{ secrets.SSH_PORT || '22' }} ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Deploy to Kubernetes
+      - name: Deploy
         working-directory: ./cloud
         run: |
           echo "[docker_hosts]" > inventory.ini
