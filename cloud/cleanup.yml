@@ -6,87 +6,40 @@
     namespace: "crypto-app"
 
   tasks:
-    # ----- ОСТАНОВКА И УДАЛЕНИЕ KUBERNETES -----
     - name: Остановка порт-форвардинга
       shell: pkill -f "kubectl port-forward"
       ignore_errors: yes
 
-    - name: Удаление всех ресурсов в namespace
+    - name: Удаление Kubernetes ресурсов
       shell: |
-        kubectl delete all --all -n {{ namespace }}
-        kubectl delete pvc --all -n {{ namespace }}
-        kubectl delete configmap --all -n {{ namespace }}
-        kubectl delete secret --all -n {{ namespace }}
-        kubectl delete ingress --all -n {{ namespace }}
+        kubectl delete all --all -n {{ namespace }} 2>/dev/null || true
+        kubectl delete pvc,configmap,secret,ingress --all -n {{ namespace }} 2>/dev/null || true
+        kubectl delete namespace {{ namespace }} 2>/dev/null || true
+        minikube stop 2>/dev/null || true
+        minikube delete --purge 2>/dev/null || true
       ignore_errors: yes
 
-    - name: Удаление namespace
-      shell: kubectl delete namespace {{ namespace }}
+    - name: Очистка Docker
+      shell: |
+        docker stop $(docker ps -aq) 2>/dev/null || true
+        docker rm $(docker ps -aq) 2>/dev/null || true
+        docker rmi $(docker images -q) 2>/dev/null || true
+        docker system prune -a -f --volumes 2>/dev/null || true
       ignore_errors: yes
 
-    - name: Остановка Minikube
-      shell: minikube stop
-      ignore_errors: yes
-
-    - name: Удаление Minikube
-      shell: minikube delete --purge
-      ignore_errors: yes
-
-    # ----- ОЧИСТКА DOCKER -----
-    - name: Остановка всех контейнеров
-      shell: docker stop $(docker ps -aq)
-      ignore_errors: yes
-
-    - name: Удаление всех контейнеров
-      shell: docker rm $(docker ps -aq)
-      ignore_errors: yes
-
-    - name: Удаление всех образов
-      shell: docker rmi $(docker images -q)
-      ignore_errors: yes
-
-    - name: Полная очистка Docker
-      shell: docker system prune -a -f --volumes
-      ignore_errors: yes
-
-    # ----- УДАЛЕНИЕ ФАЙЛОВ -----
-    - name: Удаление папки с манифестами
+    - name: Удаление файлов
       file:
-        path: /opt/k8s-manifests
+        path: "{{ item }}"
         state: absent
-
-    - name: Удаление папки с проектом
-      file:
-        path: /opt/crypto
-        state: absent
+      loop:
+        - /opt/k8s-manifests
+        - /opt/crypto
 
     - name: Удаление временных файлов
       shell: |
-        rm -rf /tmp/*.log
-        rm -rf /tmp/kubectl*
-        rm -rf ~/.minikube
+        rm -rf /tmp/*.log /tmp/kubectl* ~/.minikube
       ignore_errors: yes
 
-    # ----- ИНФОРМАЦИЯ -----
-    - name: Проверка оставшихся контейнеров
-      shell: docker ps -a
-      register: containers
-      ignore_errors: yes
-
-    - name: Проверка оставшихся образов
-      shell: docker images
-      register: images
-      ignore_errors: yes
-
-    - name: Результат очистки
+    - name: Результат
       debug:
-        msg:
-          - "🧹 Очистка завершена!"
-          - ""
-          - "📊 Оставшиеся контейнеры:"
-          - "{{ containers.stdout_lines | default(['Нет']) }}"
-          - ""
-          - "📊 Оставшиеся образы:"
-          - "{{ images.stdout_lines | default(['Нет']) }}"
-          - ""
-          - "✅ Сервер готов к новой установке!"
+        msg: "Очистка завершена. Сервер готов."

@@ -7,98 +7,52 @@ on:
   workflow_dispatch:
 
 jobs:
-  check-merge:
+  build:
     runs-on: ubuntu-latest
     if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
-    outputs:
-      should_run: ${{ steps.check.outputs.should_run }}
-    steps:
-      - id: check
-        run: echo "should_run=true" >> $GITHUB_OUTPUT
-
-  backend-test:
-    needs: check-merge
-    if: needs.check-merge.outputs.should_run == 'true'
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./backend
     steps:
       - uses: actions/checkout@v3
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-
-      - name: Cache pip
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
-
-      - name: Install dependencies
+      - name: Build backend
+        working-directory: ./backend
         run: |
-          python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Create .env file
-        run: |
-          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > .env
-          echo "APP_NAME=\"Trading Indicators API\"" >> .env
-          echo "DEBUG=false" >> .env
-          echo "ENVIRONMENT=development" >> .env
-          echo "LOG_LEVEL=INFO" >> .env
-          echo "LOG_FORMAT=text" >> .env
-          echo "LOG_TO_CONSOLE=true" >> .env
-          echo "LOG_TO_FILE=true" >> .env
-          echo "LOG_DIR=logs" >> .env
-          echo "LOG_FILE_MAX_BYTES=10485760" >> .env
-          echo "LOG_FILE_BACKUP_COUNT=5" >> .env
-
-      - name: Run backend tests
-        run: pytest tests/ -v
-
-  frontend-test:
-    needs: check-merge
-    if: needs.check-merge.outputs.should_run == 'true'
-    runs-on: ubuntu-latest
-    defaults:
-      run:
+      - name: Build frontend
         working-directory: ./frontend
-    steps:
-      - uses: actions/checkout@v3
+        run: |
+          npm install
+          npm run build
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-
-      - name: Cache npm
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Run frontend tests
-        run: npm test -- --watchAll=false
-
-  docker-build:
-    needs: [backend-test, frontend-test]
+  test:
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
 
-      # Логин в Yandex Container Registry
+      - name: Test backend
+        working-directory: ./backend
+        run: |
+          pip install -r requirements.txt
+          pytest tests/ -v
+
+      - name: Test frontend
+        working-directory: ./frontend
+        run: |
+          npm install
+          npm test -- --watchAll=false
+
+  docker:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
       - name: Login to Yandex Container Registry
         uses: yc-actions/yc-cr-login@v1
         with:
           yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
 
-      # Билд и пуш backend
       - name: Build and push backend
         uses: docker/build-push-action@v4
         with:
@@ -119,42 +73,30 @@ jobs:
             cr.yandex/${{ secrets.YC_REGISTRY_ID }}/crypto-frontend:latest
             cr.yandex/${{ secrets.YC_REGISTRY_ID }}/crypto-frontend:${{ github.sha }}
 
-  # НОВЫЙ JOB: Деплой в Kubernetes
-  deploy-to-k8s:
-    needs: docker-build
+  deploy:
+    needs: docker
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-
       - name: Install Ansible
-        run: |
-          python -m pip install --upgrade pip
-          pip install ansible
+        run: pip install ansible
 
-      - name: Setup SSH key
+      - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Add host to known_hosts
+      - name: Configure SSH
         run: |
           mkdir -p ~/.ssh
           ssh-keyscan -p ${{ secrets.SSH_PORT || '22' }} ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Create inventory file
+      - name: Deploy
         working-directory: ./cloud
         run: |
           echo "[docker_hosts]" > inventory.ini
           echo "vm ansible_host=${{ secrets.SSH_HOST }} ansible_user=${{ secrets.SSH_USER }}" >> inventory.ini
-
-      - name: Deploy to Kubernetes
-        working-directory: ./cloud
-        run: |
           ansible-playbook -i inventory.ini deploy_k8s.yml \
             -e "yc_oauth_token=${{ secrets.YC_TOKEN }}" \
             -e "version=${{ github.sha }}" \
