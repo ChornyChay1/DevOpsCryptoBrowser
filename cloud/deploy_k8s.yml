@@ -47,22 +47,22 @@
         docker system prune -a -f --volumes 2>/dev/null || true
       ignore_errors: yes
 
+    # ----- СОЗДАНИЕ ПАПКИ (ВНЕ БЛОКА) -----
+    - name: Создание папки для манифестов
+      file:
+        path: /opt/k8s-manifests
+        state: directory
+        mode: '0755'
+      become: yes
+
     - name: Применение манифестов
       block:
-        - name: Создание папки
-          file:
-            path: /opt/k8s-manifests
-            state: directory
-            mode: '0755'
-          become: yes
-
         - name: Копирование манифестов
           copy:
             src: "{{ item }}"
             dest: "/opt/k8s-manifests/{{ item | basename }}"
             mode: '0644'
           loop: "{{ lookup('fileglob', '../k8s/*.yaml', wantlist=True) }}"
-          become: yes
 
         - name: kubectl apply
           shell: kubectl apply -f /opt/k8s-manifests/
