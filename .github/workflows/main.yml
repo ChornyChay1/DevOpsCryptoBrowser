@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  backend-build:
     runs-on: ubuntu-latest
     if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
     steps:
@@ -18,33 +18,39 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
+      - name: Cache pip
+        uses: actions/cache@v3
         with:
-          node-version: '18'
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt') }}
 
       - name: Backend install
         working-directory: ./backend
         run: pip install -r requirements.txt
 
+  frontend-build:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Cache npm
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('frontend/package-lock.json') }}
+
       - name: Frontend install
         working-directory: ./frontend
         run: npm install
 
-      - name: Upload backend deps
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-deps
-          path: ./backend/venv
-
-      - name: Upload frontend deps
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-deps
-          path: ./frontend/node_modules
-
-  test:
-    needs: build
+  backend-test:
+    needs: backend-build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -54,22 +60,11 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
+      - name: Cache pip
+        uses: actions/cache@v3
         with:
-          node-version: '18'
-
-      - name: Download backend deps
-        uses: actions/download-artifact@v4
-        with:
-          name: backend-deps
-          path: ./backend
-
-      - name: Download frontend deps
-        uses: actions/download-artifact@v4
-        with:
-          name: frontend-deps
-          path: ./frontend
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt') }}
 
       - name: Backend test
         working-directory: ./backend
@@ -87,12 +82,29 @@ jobs:
           echo "LOG_FILE_BACKUP_COUNT=5" >> .env
           pytest tests/ -v
 
+  frontend-test:
+    needs: frontend-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Cache npm
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('frontend/package-lock.json') }}
+
       - name: Frontend test
         working-directory: ./frontend
         run: npm test -- --watchAll=false
 
-  docker:
-    needs: test
+  backend-docker:
+    needs: backend-test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -111,6 +123,17 @@ jobs:
             cr.yandex/${{ secrets.YC_REGISTRY_ID }}/crypto-backend:latest
             cr.yandex/${{ secrets.YC_REGISTRY_ID }}/crypto-backend:${{ github.sha }}
 
+  frontend-docker:
+    needs: frontend-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Login to Yandex Container Registry
+        uses: yc-actions/yc-cr-login@v1
+        with:
+          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+
       - name: Build and push frontend
         uses: docker/build-push-action@v4
         with:
@@ -123,7 +146,7 @@ jobs:
             cr.yandex/${{ secrets.YC_REGISTRY_ID }}/crypto-frontend:${{ github.sha }}
 
   deploy:
-    needs: docker
+    needs: [backend-docker, frontend-docker]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
