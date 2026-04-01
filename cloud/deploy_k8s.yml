@@ -76,25 +76,63 @@
 
     - name: Настройка доступа
       block:
-        - name: Получение IP и портов
+        - name: Получение публичного IP ВМ
           set_fact:
             vm_ip: "{{ hostvars[inventory_hostname].ansible_host }}"
-            frontend_port: "{{ lookup('k8s', kind='Service', namespace=namespace, resource_name='frontend').spec.ports[0].nodePort }}"
-            backend_port: "{{ lookup('k8s', kind='Service', namespace=namespace, resource_name='backend').spec.ports[0].nodePort | default('') }}"
 
-        - name: Запуск порт-форвардинга
+        - name: Получение порта фронтенда
           shell: |
-            pkill -f "kubectl port-forward" 2>/dev/null || true
-            nohup kubectl port-forward -n {{ namespace }} svc/frontend {{ frontend_port }}:80 --address 0.0.0.0 > /tmp/frontend-fwd.log 2>&1 &
+            kubectl get svc frontend -n {{ namespace }} -o jsonpath='{.spec.ports[0].nodePort}'
+          become_user: ubuntu
+          become: no
+          register: frontend_port
+          changed_when: false
+
+        - name: Получение порта бэкенда
+          shell: |
+            kubectl get svc backend -n {{ namespace }} -o jsonpath='{.spec.ports[0].nodePort}'
+          become_user: ubuntu
+          become: no
+          register: backend_port
+          changed_when: false
+          ignore_errors: yes
+
+        - name: Статус подов
+          shell: kubectl get pods -n {{ namespace }}
+          become_user: ubuntu
+          become: no
+          register: pods_status
+
+        - name: Статус сервисов
+          shell: kubectl get svc -n {{ namespace }}
+          become_user: ubuntu
+          become: no
+          register: svc_status
+
+        - name: Запуск порт-форвардинга для фронтенда
+          shell: |
+            nohup kubectl port-forward -n {{ namespace }} svc/frontend {{ frontend_port.stdout }}:80 --address 0.0.0.0 > /tmp/frontend-forward.log 2>&1 &
+          become_user: ubuntu
+          become: no
+
+        - name: Запуск порт-форвардинга для бэкенда
+          shell: |
             nohup kubectl port-forward -n {{ namespace }} svc/backend 8000:8000 --address 0.0.0.0 > /dev/null 2>&1 &
           become_user: ubuntu
           become: no
-          changed_when: false
 
-        - name: Проверка портов
-          shell: sleep 2 && sudo ss -tlnp | grep -E "{{ frontend_port }}|8000"
+        - name: Проверка порт-форвардинга
+          shell: |
+            sleep 2
+            sudo ss -tlnp | grep -E "{{ frontend_port.stdout }}|{{ backend_port.stdout }}"
+          become_user: ubuntu
+          become: no
           register: port_check
           changed_when: false
+
+        - name: Результат порт-форвардинга
+          debug:
+            msg: "Порт-форвардинг запущен: {{ port_check.stdout_lines }}"
       become_user: ubuntu
       become: no
 
