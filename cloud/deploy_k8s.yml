@@ -54,6 +54,7 @@
             path: /opt/k8s-manifests
             state: directory
             mode: '0755'
+          become: yes
 
         - name: Копирование манифестов
           copy:
@@ -61,6 +62,7 @@
             dest: "/opt/k8s-manifests/{{ item | basename }}"
             mode: '0644'
           loop: "{{ lookup('fileglob', '../k8s/*.yaml', wantlist=True) }}"
+          become: yes
 
         - name: kubectl apply
           shell: kubectl apply -f /opt/k8s-manifests/
