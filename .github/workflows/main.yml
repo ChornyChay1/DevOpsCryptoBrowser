@@ -7,43 +7,53 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
     if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v3
 
-      - name: Build backend
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Backend install
         working-directory: ./backend
         run: |
           pip install -r requirements.txt
 
-      - name: Build frontend
-        working-directory: ./frontend
-        run: |
-          npm install
-          npm run build
-
-  test:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Test backend
+      - name: Backend test
         working-directory: ./backend
         run: |
-          pip install -r requirements.txt
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > .env
+          echo "APP_NAME=\"Trading Indicators API\"" >> .env
+          echo "DEBUG=false" >> .env
+          echo "ENVIRONMENT=development" >> .env
+          echo "LOG_LEVEL=INFO" >> .env
+          echo "LOG_FORMAT=text" >> .env
+          echo "LOG_TO_CONSOLE=true" >> .env
+          echo "LOG_TO_FILE=true" >> .env
+          echo "LOG_DIR=logs" >> .env
+          echo "LOG_FILE_MAX_BYTES=10485760" >> .env
+          echo "LOG_FILE_BACKUP_COUNT=5" >> .env
           pytest tests/ -v
 
-      - name: Test frontend
+      - name: Frontend install
         working-directory: ./frontend
-        run: |
-          npm install
-          npm test -- --watchAll=false
+        run: npm install
+
+      - name: Frontend test
+        working-directory: ./frontend
+        run: npm test -- --watchAll=false
 
   docker:
-    needs: test
+    needs: build-and-test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -92,7 +102,7 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -p ${{ secrets.SSH_PORT || '22' }} ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Deploy
+      - name: Deploy to Kubernetes
         working-directory: ./cloud
         run: |
           echo "[docker_hosts]" > inventory.ini
