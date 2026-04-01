@@ -12,60 +12,36 @@ jobs:
     if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v3
-
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-
       - name: Cache pip
         uses: actions/cache@v3
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt') }}
-
       - name: Backend install
         working-directory: ./backend
         run: pip install -r requirements.txt
-
-  frontend-build:
-    runs-on: ubuntu-latest
-    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-
-      - name: Cache npm
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-node-${{ hashFiles('frontend/package-lock.json') }}
-
-      - name: Frontend install
-        working-directory: ./frontend
-        run: npm install
 
   backend-test:
     needs: backend-build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-
       - name: Cache pip
         uses: actions/cache@v3
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt') }}
-
+      - name: Backend install
+        working-directory: ./backend
+        run: pip install -r requirements.txt
       - name: Backend test
         working-directory: ./backend
         run: |
@@ -82,38 +58,15 @@ jobs:
           echo "LOG_FILE_BACKUP_COUNT=5" >> .env
           pytest tests/ -v
 
-  frontend-test:
-    needs: frontend-build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-
-      - name: Cache npm
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-node-${{ hashFiles('frontend/package-lock.json') }}
-
-      - name: Frontend test
-        working-directory: ./frontend
-        run: npm test -- --watchAll=false
-
   backend-docker:
     needs: backend-test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
       - name: Login to Yandex Container Registry
         uses: yc-actions/yc-cr-login@v1
         with:
           yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
-
       - name: Build and push backend
         uses: docker/build-push-action@v4
         with:
@@ -123,17 +76,54 @@ jobs:
             cr.yandex/${{ secrets.YC_REGISTRY_ID }}/crypto-backend:latest
             cr.yandex/${{ secrets.YC_REGISTRY_ID }}/crypto-backend:${{ github.sha }}
 
+  frontend-build:
+    needs: backend-docker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      - name: Cache npm
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('frontend/package-lock.json') }}
+      - name: Frontend install
+        working-directory: ./frontend
+        run: npm install
+
+  frontend-test:
+    needs: frontend-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      - name: Cache npm
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('frontend/package-lock.json') }}
+      - name: Frontend install
+        working-directory: ./frontend
+        run: npm install
+      - name: Frontend test
+        working-directory: ./frontend
+        run: npm test -- --watchAll=false
+
   frontend-docker:
     needs: frontend-test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
       - name: Login to Yandex Container Registry
         uses: yc-actions/yc-cr-login@v1
         with:
           yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
-
       - name: Build and push frontend
         uses: docker/build-push-action@v4
         with:
@@ -146,25 +136,21 @@ jobs:
             cr.yandex/${{ secrets.YC_REGISTRY_ID }}/crypto-frontend:${{ github.sha }}
 
   deploy:
-    needs: [backend-docker, frontend-docker]
+    needs: frontend-docker
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
       - name: Install Ansible
         run: pip install ansible
-
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-
       - name: Configure SSH
         run: |
           mkdir -p ~/.ssh
           ssh-keyscan -p ${{ secrets.SSH_PORT || '22' }} ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
-
-      - name: Deploy
+      - name: Redeploy
         working-directory: ./cloud
         run: |
           echo "[docker_hosts]" > inventory.ini
