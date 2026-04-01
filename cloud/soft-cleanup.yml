@@ -1,0 +1,69 @@
+---
+- name: Остановка всего и очистка Docker
+  hosts: docker_hosts
+  become: yes
+  vars:
+    namespace: "crypto-app"
+
+  tasks:
+    # ----- ОСТАНОВКА ПОРТ-ФОРВАРДИНГА -----
+    - name: Остановка порт-форвардинга
+      shell: pkill -f "kubectl port-forward"
+      ignore_errors: yes
+
+    # ----- ОСТАНОВКА ПОДОВ -----
+    - name: Масштабирование деплойментов до 0
+      shell: |
+        kubectl scale deployment --all -n {{ namespace }} --replicas=0
+      register: scale_result
+      ignore_errors: yes
+
+    # ----- ОЧИСТКА DOCKER -----
+    - name: Остановка всех контейнеров
+      shell: docker stop $(docker ps -aq)
+      ignore_errors: yes
+
+    - name: Удаление всех контейнеров
+      shell: docker rm $(docker ps -aq)
+      ignore_errors: yes
+
+    - name: Удаление всех образов
+      shell: docker rmi $(docker images -q)
+      ignore_errors: yes
+
+    - name: Полная очистка Docker
+      shell: docker system prune -a -f --volumes
+      ignore_errors: yes
+
+    # ----- ПРОВЕРКА -----
+    - name: Проверка оставшихся подов
+      shell: kubectl get pods -n {{ namespace }}
+      register: pods_status
+      ignore_errors: yes
+
+    - name: Проверка оставшихся контейнеров
+      shell: docker ps -a
+      register: docker_containers
+      ignore_errors: yes
+
+    - name: Проверка порт-форвардинга
+      shell: pgrep -f "kubectl port-forward"
+      register: portforward_check
+      ignore_errors: yes
+
+    # ----- ФИНАЛЬНАЯ ИНФОРМАЦИЯ -----
+    - name: Результат
+      debug:
+        msg:
+          - ""
+          - "🛑 Всё остановлено и очищено!"
+          - "====================================="
+          - ""
+          - "📊 Оставшиеся поды:"
+          - "{{ pods_status.stdout_lines | default(['Нет']) }}"
+          - ""
+          - "🐳 Оставшиеся контейнеры Docker:"
+          - "{{ docker_containers.stdout_lines | default(['Нет']) }}"
+          - ""
+          - "🔌 Порт-форвардинг:"
+          - "{{ '❌ Ещё работает' if portforward_check.stdout else '✅ Остановлен' }}"
