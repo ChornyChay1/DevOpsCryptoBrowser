@@ -1,0 +1,49 @@
+name: Full Reinstall
+
+on:
+  workflow_dispatch:
+
+jobs:
+  reinstall:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Ansible
+        run: pip install ansible
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ secrets.SSH_PORT || '22' }} ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Create inventory file
+        working-directory: ./cloud/ansible_playbooks
+        run: |
+          echo "[docker_hosts]" > inventory.ini
+          echo "vm ansible_host=${{ secrets.SSH_HOST }} ansible_user=${{ secrets.SSH_USER }}" >> inventory.ini
+
+      - name: Step 1 - Cleanup
+        working-directory: ./cloud/ansible_playbooks
+        run: ansible-playbook -i inventory.ini cleanup.yml
+
+      - name: Step 2 - Install Docker and Minikube
+        working-directory: ./cloud/ansible_playbooks
+        run: ansible-playbook -i inventory.ini install_docker.yml
+
+      - name: Step 3 - Configure Kubernetes
+        working-directory: ./cloud/ansible_playbooks
+        run: ansible-playbook -i inventory.ini configure_k8s.yml
+
+      - name: Step 4 - Deploy Application
+        working-directory: ./cloud/ansible_playbooks
+        run: |
+          ansible-playbook -i inventory.ini deploy_k8s.yml \
+            -e "yc_oauth_token=${{ secrets.YC_TOKEN }}" \
+            -e "version=${{ github.sha }}" \
+            -e "db_password=${{ secrets.DB_PASSWORD }}"

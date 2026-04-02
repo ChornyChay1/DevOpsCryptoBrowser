@@ -151,7 +151,7 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -p ${{ secrets.SSH_PORT || '22' }} ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
       - name: Redeploy
-        working-directory: ./cloud
+        working-directory: ./cloud/ansible_playbooks
         run: |
           echo "[docker_hosts]" > inventory.ini
           echo "vm ansible_host=${{ secrets.SSH_HOST }} ansible_user=${{ secrets.SSH_USER }}" >> inventory.ini
