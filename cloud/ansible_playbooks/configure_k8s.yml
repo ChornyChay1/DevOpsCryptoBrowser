@@ -1,0 +1,101 @@
+---
+- name: Настройка Kubernetes
+  hosts: docker_hosts
+  become: yes
+  vars:
+    namespace: "crypto-app"
+
+  tasks:
+    - name: Проверка кластера
+      shell: kubectl get nodes
+      become_user: ubuntu
+      become: no
+      register: nodes_status
+      changed_when: false
+
+    - name: Создание namespace
+      shell: |
+        kubectl create namespace {{ namespace }} --dry-run=client -o yaml | kubectl apply -f -
+      become_user: ubuntu
+      become: no
+
+    - name: Включение metrics-server
+      shell: minikube addons enable metrics-server
+      become_user: ubuntu
+      become: no
+      changed_when: false
+
+    - name: Добавление репозитория Prometheus
+      shell: |
+        helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+        helm repo update
+      become_user: ubuntu
+      become: no
+      changed_when: false
+
+    - name: Создание namespace для мониторинга
+      shell: kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
+      become_user: ubuntu
+      become: no
+
+    - name: Установка kube-prometheus-stack (Prometheus + Grafana)
+      shell: |
+        helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
+          --namespace monitoring \
+          --set prometheus.prometheusSpec.resources.requests.memory=512Mi \
+          --set prometheus.prometheusSpec.resources.requests.cpu=200m \
+          --set grafana.resources.requests.memory=128Mi \
+          --set grafana.resources.requests.cpu=50m \
+          --set alertmanager.alertmanagerSpec.resources.requests.memory=128Mi \
+          --set alertmanager.alertmanagerSpec.resources.requests.cpu=50m \
+          --wait \
+          --timeout 10m
+      become_user: ubuntu
+      become: no
+      register: helm_install
+      ignore_errors: yes
+
+    - name: Ожидание запуска Grafana
+      shell: |
+        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=grafana -n monitoring --timeout=120s
+      become_user: ubuntu
+      become: no
+      ignore_errors: yes
+
+    - name: Запуск порт-форвардинга для Grafana
+      shell: |
+        pkill -f "port-forward.*grafana" 2>/dev/null || true
+        nohup kubectl port-forward -n monitoring svc/monitoring-grafana 3000:80 --address 0.0.0.0 > /tmp/grafana-fwd.log 2>&1 &
+      become_user: ubuntu
+      become: no
+
+    - name: Проверка порта Grafana
+      shell: |
+        sleep 3
+        sudo ss -tlnp | grep 3000
+      register: grafana_port
+      changed_when: false
+
+    - name: Проверка подов мониторинга
+      shell: kubectl get pods -n monitoring
+      become_user: ubuntu
+      become: no
+      register: monitoring_pods
+      changed_when: false
+
+    - name: Статус подов
+      shell: kubectl get pods -n kube-system
+      become_user: ubuntu
+      become: no
+      register: pods_status
+      changed_when: false
+
+    - name: Результат
+      debug:
+        msg: |
+          Kubernetes настроен
+          Namespace: {{ namespace }}
+          Мониторинг установлен
+          Grafana доступна: http://{{ hostvars[inventory_hostname].ansible_host }}:3000
+          Логин: admin, Пароль: prom-operator
+          Проверка: kubectl get pods -n kube-system

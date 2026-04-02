@@ -111,13 +111,22 @@
 
         - name: Запуск порт-форвардинга для фронтенда
           shell: |
-            nohup kubectl port-forward -n {{ namespace }} svc/frontend {{ frontend_port.stdout }}:80 --address 0.0.0.0 > /tmp/frontend-forward.log 2>&1 &
+            pkill -f "port-forward.*frontend" 2>/dev/null || true
+            nohup kubectl port-forward -n {{ namespace }} svc/frontend {{ frontend_port.stdout }}:80 --address 0.0.0.0 > /tmp/frontend-fwd.log 2>&1 &
           become_user: ubuntu
           become: no
 
         - name: Запуск порт-форвардинга для бэкенда
           shell: |
-            nohup kubectl port-forward -n {{ namespace }} svc/backend 8000:8000 --address 0.0.0.0 > /dev/null 2>&1 &
+            pkill -f "port-forward.*backend" 2>/dev/null || true
+            nohup kubectl port-forward -n {{ namespace }} svc/backend 8000:8000 --address 0.0.0.0 > /tmp/backend-fwd.log 2>&1 &
+          become_user: ubuntu
+          become: no
+
+        - name: Запуск порт-форвардинга для Grafana
+          shell: |
+            pkill -f "port-forward.*grafana" 2>/dev/null || true
+            nohup kubectl port-forward -n monitoring svc/monitoring-grafana 3000:80 --address 0.0.0.0 > /tmp/grafana-fwd.log 2>&1 &
           become_user: ubuntu
           become: no
 

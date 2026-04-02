@@ -10,11 +10,18 @@
       shell: pkill -f "kubectl port-forward"
       ignore_errors: yes
 
+    - name: Удаление Helm релизов
+      shell: |
+        helm uninstall monitoring -n monitoring 2>/dev/null || true
+        helm repo remove prometheus-community 2>/dev/null || true
+      ignore_errors: yes
+
     - name: Удаление Kubernetes ресурсов
       shell: |
         kubectl delete all --all -n {{ namespace }} 2>/dev/null || true
         kubectl delete pvc,configmap,secret,ingress --all -n {{ namespace }} 2>/dev/null || true
         kubectl delete namespace {{ namespace }} 2>/dev/null || true
+        kubectl delete namespace monitoring 2>/dev/null || true
         minikube stop 2>/dev/null || true
         minikube delete --purge 2>/dev/null || true
       ignore_errors: yes
@@ -34,12 +41,34 @@
       loop:
         - /opt/k8s-manifests
         - /opt/crypto
+        - /tmp/frontend-fwd.log
+        - /tmp/backend-fwd.log
+        - /tmp/grafana-fwd.log
 
-    - name: Удаление временных файлов
+    - name: Удаление Helm и временных файлов
       shell: |
-        rm -rf /tmp/*.log /tmp/kubectl* ~/.minikube
+        rm -rf /tmp/*.log /tmp/kubectl* ~/.minikube /tmp/helm* /tmp/get_helm.sh
+        sudo rm -f /usr/local/bin/helm 2>/dev/null || true
+      ignore_errors: yes
+
+    - name: Проверка оставшихся ресурсов
+      shell: |
+        echo "=== Docker контейнеры ==="
+        docker ps -a 2>/dev/null || echo "None"
+        echo ""
+        echo "=== Docker образы ==="
+        docker images 2>/dev/null || echo "None"
+        echo ""
+        echo "=== Helm релизы ==="
+        helm list -A 2>/dev/null || echo "None"
+      register: check_result
       ignore_errors: yes
 
     - name: Результат
       debug:
-        msg: "Очистка завершена. Сервер готов."
+        msg: |
+          Очистка завершена.
+          
+          {{ check_result.stdout }}
+          
+          Сервер готов к новой установке.
