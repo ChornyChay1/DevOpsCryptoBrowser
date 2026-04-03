@@ -59,7 +59,7 @@
         src: "{{ item }}"
         dest: "/opt/k8s-manifests/{{ item | basename }}"
         mode: '0644'
-      loop: "{{ lookup('fileglob', '../k8s/*.yaml', wantlist=True) }}"
+      loop: "{{ lookup('fileglob', '../../../k8s/*.yaml', wantlist=True) }}"
       become: yes
 
     - name: Применение манифестов
