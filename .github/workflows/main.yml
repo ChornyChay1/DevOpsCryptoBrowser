@@ -7,45 +7,10 @@ on:
   workflow_dispatch:
 
 jobs:
-  backend-build:
+  # 1. Бэкенд тесты
+  backend-test:
     runs-on: ubuntu-latest
     if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
-    steps:
-      - uses: actions/checkout@v3
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-      - name: Cache pip
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt') }}
-      - name: Backend install
-        working-directory: ./backend
-        run: pip install -r requirements.txt
-
-  frontend-build:
-    needs: backend-build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-      - name: Cache npm
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-node-${{ hashFiles('frontend/package-lock.json') }}
-      - name: Frontend install
-        working-directory: ./frontend
-        run: npm install
-
-  backend-test:
-    needs: frontend-build
-    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - name: Setup Python
@@ -76,8 +41,52 @@ jobs:
           echo "LOG_FILE_BACKUP_COUNT=5" >> .env
           pytest tests/ -v
 
-  frontend-test:
+  # 2. Бэкенд билд + SonarQube
+  backend-build:
     needs: backend-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Cache pip
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt') }}
+      - name: Backend install
+        working-directory: ./backend
+        run: |
+          pip install -r requirements.txt
+          pip install pytest-cov
+      - name: Generate coverage report
+        working-directory: ./backend
+        run: |
+          pytest --cov=. --cov-report=xml:coverage.xml
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        with:
+          args: >
+            -Dsonar.projectKey=crypto-backend
+            -Dsonar.python.coverage.reportPaths=backend/coverage.xml
+            -Dsonar.sources=backend
+            -Dsonar.tests=backend/tests
+      - name: SonarQube Quality Gate check
+        uses: sonarsource/sonarqube-quality-gate-action@v1
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  # 3. Фронтенд тесты
+  frontend-test:
+    needs: backend-build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -97,8 +106,28 @@ jobs:
         working-directory: ./frontend
         run: npm test -- --watchAll=false
 
-  backend-docker:
+  # 4. Фронтенд билд
+  frontend-build:
     needs: frontend-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      - name: Cache npm
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('frontend/package-lock.json') }}
+      - name: Frontend install
+        working-directory: ./frontend
+        run: npm install
+
+  # 5. Бэкенд Docker
+  backend-docker:
+    needs: frontend-build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -115,6 +144,7 @@ jobs:
             cr.yandex/${{ secrets.YC_REGISTRY_ID }}/crypto-backend:latest
             cr.yandex/${{ secrets.YC_REGISTRY_ID }}/crypto-backend:${{ github.sha }}
 
+  # 6. Фронтенд Docker
   frontend-docker:
     needs: backend-docker
     runs-on: ubuntu-latest
@@ -135,6 +165,7 @@ jobs:
             cr.yandex/${{ secrets.YC_REGISTRY_ID }}/crypto-frontend:latest
             cr.yandex/${{ secrets.YC_REGISTRY_ID }}/crypto-frontend:${{ github.sha }}
 
+  # 7. Деплой
   deploy:
     needs: frontend-docker
     runs-on: ubuntu-latest
