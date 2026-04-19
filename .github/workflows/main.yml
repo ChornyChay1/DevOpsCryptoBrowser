@@ -89,6 +89,8 @@ jobs:
             -Dsonar.python.coverage.reportPaths=backend/coverage.xml
             -Dsonar.sources=backend
             -Dsonar.tests=backend/tests
+            -Dsonar.exclusions=**/venv/**,**/__pycache__/**,**/migrations/**,**/tests/**
+            -Dsonar.test.inclusions=**/*.py
       - name: SonarQube Quality Gate check
         uses: sonarsource/sonarqube-quality-gate-action@v1
         timeout-minutes: 5
