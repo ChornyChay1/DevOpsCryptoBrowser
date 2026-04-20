@@ -28,8 +28,8 @@ async def recalc_indicator(ind: IndicatorDB):
 
 
 async def recalc_all_indicators():
-    SessionLocal = get_session_local()
-    async with SessionLocal() as session:
+    session_local = get_session_local()
+    async with session_local() as session:
         result = await session.execute(select(IndicatorDB))
         inds = result.scalars().all()
 

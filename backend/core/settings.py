@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-def getDatabaseUrl():
+def get_database_url():
     user = os.getenv("POSTGRES_USER")
     password = os.getenv("POSTGRES_PASSWORD")
     db = os.getenv("POSTGRES_DB")
