@@ -78,6 +78,12 @@ jobs:
           echo "LOG_FILE_MAX_BYTES=10485760" >> .env
           echo "LOG_FILE_BACKUP_COUNT=5" >> .env
           pytest --cov=. --cov-report=xml:coverage.xml
+      - name: Debug files
+        run: |
+          echo "=== Current directory ==="
+          pwd
+          echo "=== List all files ==="
+          find . -name "*.py" | head -30
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v5
         env:
@@ -89,8 +95,8 @@ jobs:
             -Dsonar.python.coverage.reportPaths=backend/coverage.xml
             -Dsonar.sources=backend
             -Dsonar.tests=backend/tests
-            -Dsonar.exclusions=**/venv/**,**/__pycache__/**,**/migrations/**,**/tests/**
-            -Dsonar.test.inclusions=**/*.py
+            -Dsonar.exclusions=**/venv/**,**/__pycache__/**,**/migrations/**
+            -Dsonar.inclusions=backend/**/*.py
       - name: SonarQube Quality Gate check
         uses: sonarsource/sonarqube-quality-gate-action@v1
         timeout-minutes: 5
