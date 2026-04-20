@@ -14,8 +14,8 @@ router = APIRouter()
 @router.post("/indicator")
 async def create_indicator(ind: IndicatorCreate):
     db_ind = IndicatorDB(name=ind.name, type=ind.type, period=ind.period, color=ind.color)
-    SessionLocal = get_session_local()
-    async with SessionLocal() as session:
+    session_local = get_session_local()
+    async with session_local() as session:
         session.add(db_ind)
         await session.commit()
         await session.refresh(db_ind)
@@ -27,8 +27,8 @@ async def create_indicator(ind: IndicatorCreate):
 
 @router.put("/indicator/{ind_id}")
 async def update_indicator(ind_id: int, upd: IndicatorUpdate):
-    SessionLocal = get_session_local()
-    async with SessionLocal() as session:
+    session_local = get_session_local()
+    async with session_local() as session:
         result = await session.execute(
             select(IndicatorDB).where(IndicatorDB.id == ind_id)
         )
@@ -54,8 +54,8 @@ async def update_indicator(ind_id: int, upd: IndicatorUpdate):
 
 @router.delete("/indicator/{ind_id}")
 async def delete_indicator(ind_id: int):
-    SessionLocal = get_session_local()
-    async with SessionLocal() as session:
+    session_local = get_session_local()
+    async with session_local() as session:
         await session.execute(delete(IndicatorDB).where(IndicatorDB.id == ind_id))
         await session.commit()
 
@@ -65,8 +65,8 @@ async def delete_indicator(ind_id: int):
 
 @router.get("/data")
 async def get_data():
-    SessionLocal = get_session_local()
-    async with SessionLocal() as session:
+    session_local = get_session_local()
+    async with session_local() as session:
         result = await session.execute(select(IndicatorDB))
         inds = result.scalars().all()
 
