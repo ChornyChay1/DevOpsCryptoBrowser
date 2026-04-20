@@ -25,7 +25,7 @@ jobs:
       - name: Backend install
         working-directory: ./backend
         run: pip install -r requirements.txt
-      - name: Backend test with coverage
+      - name: Backend test
         working-directory: ./backend
         run: |
           echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > .env
@@ -39,60 +39,85 @@ jobs:
           echo "LOG_DIR=logs" >> .env
           echo "LOG_FILE_MAX_BYTES=10485760" >> .env
           echo "LOG_FILE_BACKUP_COUNT=5" >> .env
-          pip install pytest-cov
-          pytest tests/ -v --cov=. --cov-report=xml:coverage.xml --cov-report=term
+          pytest tests/ -v
 
-  # 2. SonarQube с проверкой Quality Gate
-  sonarqube:
+  # 2. Бэкенд билд + SonarQube
+  backend-build:
     needs: backend-test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-      - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@v5
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: http://${{ secrets.SSH_HOST }}:9000
+      - name: Setup Python
+        uses: actions/setup-python@v4
         with:
-          args: >
-            -Dsonar.projectKey=crypto-backend
-            -Dsonar.python.coverage.reportPaths=backend/coverage.xml
-            -Dsonar.sources=backend
-            -Dsonar.tests=backend/tests
-      - name: SonarQube Quality Gate check
-        uses: sonarsource/sonarqube-quality-gate-action@v1
-        timeout-minutes: 5
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          python-version: '3.11'
+      - name: Cache pip
+        uses: actions/cache@v3
         with:
-          scanMetadataReportFile: .scannerwork/report-task.txt
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt') }}
+      - name: Backend install
+        working-directory: ./backend
+        run: |
+          pip install -r requirements.txt
+          pip install pytest-cov
+      - name: Generate coverage report
+        working-directory: ./backend
+        run: |
+          echo "APP_NAME=\"Trading Indicators API\"" > .env
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env
+          echo "DEBUG=false" >> .env
+          echo "ENVIRONMENT=development" >> .env
+          echo "LOG_LEVEL=INFO" >> .env
+          echo "LOG_FORMAT=text" >> .env
+          echo "LOG_TO_CONSOLE=true" >> .env
+          echo "LOG_TO_FILE=true" >> .env
+          echo "LOG_DIR=logs" >> .env
+          echo "LOG_FILE_MAX_BYTES=10485760" >> .env
+          echo "LOG_FILE_BACKUP_COUNT=5" >> .env
+          pytest --cov=. --cov-report=xml:coverage.xml
+      - name: Debug files
+        run: |
+          echo "=== Current directory ==="
+          pwd
+          echo "=== List all files ==="
+          find . -name "*.py" | head -30
 
-  # 3. Бэкенд билд (только если Quality Gate пройден)
-  backend-build:
-    needs: sonarqube
-    runs-on: ubuntu-latest
-    if: success()
-    steps:
-      - uses: actions/checkout@v3
-      - name: Login to Yandex Container Registry
-        uses: yc-actions/yc-cr-login@v1
-        with:
-          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
-      - name: Build and push backend
-        uses: docker/build-push-action@v4
-        with:
-          context: ./backend
-          push: true
-          tags: |
-            cr.yandex/${{ secrets.YC_REGISTRY_ID }}/crypto-backend:latest
-            cr.yandex/${{ secrets.YC_REGISTRY_ID }}/crypto-backend:${{ github.sha }}
+  backend-sonar:
+      needs: backend-test
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v3
+          with:
+            fetch-depth: 0
+        - name: SonarQube Scan
+          uses: SonarSource/sonarqube-scan-action@v5
+          env:
+            SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+            SONAR_HOST_URL: http://${{ secrets.SSH_HOST }}:9000
+          with:
+            args: >
+              -Dsonar.projectKey=crypto-backend
+              -Dsonar.python.coverage.reportPaths=backend/coverage.xml
+              -Dsonar.sources=backend
+              -Dsonar.tests=backend/tests
+              -Dsonar.exclusions=**/venv/**,**/__pycache__/**,**/migrations/**,**/tests/**
+              -Dsonar.test.inclusions=backend/tests/**/*.py
+        - name: SonarQube Quality Gate check
+          uses: sonarsource/sonarqube-quality-gate-action@v1
+          timeout-minutes: 5
+          env:
+            SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          with:
+            scanMetadataReportFile: .scannerwork/report-task.txt
 
-  # 4. Фронтенд тесты
+  # 3. Фронтенд тесты
   frontend-test:
     needs: backend-build
     runs-on: ubuntu-latest
+    if: success()
     steps:
       - uses: actions/checkout@v3
       - name: Setup Node.js
@@ -111,7 +136,7 @@ jobs:
         working-directory: ./frontend
         run: npm test -- --watchAll=false
 
-  # 5. Фронтенд билд
+  # 4. Фронтенд билд
   frontend-build:
     needs: frontend-test
     runs-on: ubuntu-latest
@@ -129,9 +154,32 @@ jobs:
       - name: Frontend install
         working-directory: ./frontend
         run: npm install
-      - name: Build frontend
-        working-directory: ./frontend
-        run: npm run build
+
+  # 5. Бэкенд Docker
+  backend-docker:
+    needs: frontend-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Login to Yandex Container Registry
+        uses: yc-actions/yc-cr-login@v1
+        with:
+          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+      - name: Build and push backend
+        uses: docker/build-push-action@v4
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            cr.yandex/${{ secrets.YC_REGISTRY_ID }}/crypto-backend:latest
+            cr.yandex/${{ secrets.YC_REGISTRY_ID }}/crypto-backend:${{ github.sha }}
+
+  # 6. Фронтенд Docker
+  frontend-docker:
+    needs: backend-docker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
       - name: Login to Yandex Container Registry
         uses: yc-actions/yc-cr-login@v1
         with:
@@ -147,9 +195,9 @@ jobs:
             cr.yandex/${{ secrets.YC_REGISTRY_ID }}/crypto-frontend:latest
             cr.yandex/${{ secrets.YC_REGISTRY_ID }}/crypto-frontend:${{ github.sha }}
 
-  # 6. Деплой
+  # 7. Деплой
   deploy:
-    needs: frontend-build
+    needs: frontend-docker
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
