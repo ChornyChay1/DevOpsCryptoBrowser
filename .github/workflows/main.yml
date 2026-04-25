@@ -225,7 +225,7 @@ jobs:
             -Dsonar.tests=frontend/src
             -Dsonar.test.inclusions=**/*.test.jsx,**/*.test.js
             -Dsonar.javascript.lcov.reportPaths=frontend/coverage/lcov.info
-            -Dsonar.coverage.exclusions=**/Chart.jsx,**/index.js,**/*.test.jsx,**/*.test.js,**/__tests__/**
+            -Dsonar.coverage.exclusions=**/Chart.jsx,**/index.js,**/setupTests.js,**/*.test.jsx,**/*.test.js,**/__tests__/**
             -Dsonar.exclusions=**/node_modules/**,**/build/**,**/coverage/**
 
       - name: SonarQube Quality Gate check
