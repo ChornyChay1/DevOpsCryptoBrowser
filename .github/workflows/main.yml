@@ -153,6 +153,7 @@ jobs:
         working-directory: ./frontend
         run: npm test -- --watchAll=false
 
+
   # 4. Фронтенд билд
   frontend-build:
     needs: frontend-test
@@ -215,7 +216,7 @@ jobs:
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v5
         env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_FRONTEND }}
           SONAR_HOST_URL: http://${{ secrets.SSH_HOST }}:9000
         with:
           args: >
@@ -231,7 +232,7 @@ jobs:
         uses: sonarsource/sonarqube-quality-gate-action@v1
         timeout-minutes: 5
         env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_FRONTEND }}
 
   # 5. Бэкенд Docker
   backend-docker:
