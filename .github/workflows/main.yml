@@ -41,28 +41,30 @@ jobs:
           echo "LOG_FILE_BACKUP_COUNT=5" >> .env
           pytest tests/ -v
 
-  # 2. Бэкенд билд + SonarQube
+  # 2. Бэкенд билд
   backend-build:
     needs: backend-test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
+
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
+
       - name: Cache pip
         uses: actions/cache@v3
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt') }}
+
       - name: Backend install
         working-directory: ./backend
         run: |
           pip install -r requirements.txt
           pip install pytest-cov
+
       - name: Generate coverage report
         working-directory: ./backend
         run: |
@@ -78,46 +80,50 @@ jobs:
           echo "LOG_FILE_MAX_BYTES=10485760" >> .env
           echo "LOG_FILE_BACKUP_COUNT=5" >> .env
           pytest --cov=. --cov-report=xml:coverage.xml
+
       - name: Debug files
         run: |
           echo "=== Current directory ==="
           pwd
           echo "=== List all files ==="
           find . -name "*.py" | head -30
+  
 
+  # 3. Бэкенд SonarQube
   backend-sonar:
-      needs: backend-test
-      runs-on: ubuntu-latest
-      steps:
-        - uses: actions/checkout@v3
-          with:
-            fetch-depth: 0
-        - name: SonarQube Scan
-          uses: SonarSource/sonarqube-scan-action@v5
-          env:
-            SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-            SONAR_HOST_URL: http://${{ secrets.SSH_HOST }}:9000
-          with:
-            args: >
-              -Dsonar.projectKey=crypto-backend
-              -Dsonar.python.coverage.reportPaths=backend/coverage.xml
-              -Dsonar.sources=backend
-              -Dsonar.tests=backend/tests
-              -Dsonar.exclusions=**/venv/**,**/__pycache__/**,**/migrations/**,**/tests/**
-              -Dsonar.test.inclusions=backend/tests/**/*.py
-        - name: SonarQube Quality Gate check
-          uses: sonarsource/sonarqube-quality-gate-action@v1
-          timeout-minutes: 5
-          env:
-            SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          with:
-            scanMetadataReportFile: .scannerwork/report-task.txt
+    needs: backend-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: http://${{ secrets.SSH_HOST }}:9000
+        with:
+          args: >
+            -Dsonar.projectKey=crypto-backend
+            -Dsonar.python.coverage.reportPaths=backend/coverage.xml
+            -Dsonar.sources=backend
+            -Dsonar.tests=backend/tests
+            -Dsonar.exclusions=**/venv/**,**/__pycache__/**,**/migrations/**,**/tests/**
+            -Dsonar.test.inclusions=backend/tests/**/*.py
+
+      - name: SonarQube Quality Gate check
+        uses: sonarsource/sonarqube-quality-gate-action@v1
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+
 
   # 3. Фронтенд тесты
   frontend-test:
     needs: backend-build
     runs-on: ubuntu-latest
-    if: success()
     steps:
       - uses: actions/checkout@v3
       - name: Setup Node.js
@@ -154,6 +160,67 @@ jobs:
       - name: Frontend install
         working-directory: ./frontend
         run: npm install
+      - name: Build
+        working-directory: ./frontend
+        run: npm run build
+
+
+  # Фронтенд SonarQube
+  frontend-sonar:
+    needs: frontend-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Cache npm
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('frontend/package-lock.json') }}
+
+      - name: Frontend install
+        working-directory: ./frontend
+        run: npm install
+
+      - name: Generate coverage report
+        working-directory: ./frontend
+        run: |
+          npm test -- --coverage --watchAll=false --coverageReporters=lcov --coverageReporters=json --coverageReporters=text
+
+      - name: Debug coverage files
+        run: |
+          echo "=== Coverage directory ==="
+          ls -la frontend/coverage/ || echo "No coverage dir"
+          echo "=== Lcov file ==="
+          find . -name "lcov.info" | head -5
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: http://${{ secrets.SSH_HOST }}:9000
+        with:
+          args: >
+            -Dsonar.projectKey=crypto-frontend
+            -Dsonar.sources=frontend/src
+            -Dsonar.tests=frontend/src
+            -Dsonar.test.inclusions=**/*.test.jsx,**/*.test.js
+            -Dsonar.javascript.lcov.reportPaths=frontend/coverage/lcov.info
+            -Dsonar.coverage.exclusions=**/Chart.jsx,**/index.js,**/*.test.jsx,**/*.test.js,**/__tests__/**
+            -Dsonar.exclusions=**/node_modules/**,**/build/**,**/coverage/**
+
+      - name: SonarQube Quality Gate check
+        uses: sonarsource/sonarqube-quality-gate-action@v1
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   # 5. Бэкенд Docker
   backend-docker:
