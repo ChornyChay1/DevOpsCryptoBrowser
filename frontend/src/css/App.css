@@ -300,7 +300,6 @@ body {
     gap: 0.5rem;
     padding: 0.625rem 1.25rem;
     background: linear-gradient(135deg, var(--gray-900), var(--gray-800));
-    border: none;
     border-radius: var(--radius-full);
     color: white;
     font-weight: 500;
