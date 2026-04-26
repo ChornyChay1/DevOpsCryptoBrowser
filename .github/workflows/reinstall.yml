@@ -47,3 +47,7 @@ jobs:
             -e "yc_oauth_token=${{ secrets.YC_TOKEN }}" \
             -e "version=${{ github.sha }}" \
             -e "db_password=${{ secrets.DB_PASSWORD }}"
+
+      - name: Step 5 - Setup port-forwarding (systemd services)
+        working-directory: ./cloud/ansible_playbooks
+        run: ansible-playbook -i inventory.ini setup-port-forwarding.yml

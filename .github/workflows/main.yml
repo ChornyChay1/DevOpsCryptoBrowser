@@ -7,8 +7,24 @@ on:
   workflow_dispatch:
 
 jobs:
+  # Отправка уведомления о начале пайплайна
+  notify-start:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send start notification
+        run: |
+          MESSAGE="CI/CD Pipeline запущен"
+          MESSAGE="$MESSAGE%0AРепозиторий: ${{ github.repository }}"
+          MESSAGE="$MESSAGE%0AВетка: ${{ github.ref_name }}"
+          MESSAGE="$MESSAGE%0AКоммит: ${{ github.sha }}"
+          MESSAGE="$MESSAGE%0AАвтор: ${{ github.actor }}"
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -d text="$MESSAGE"
+
   # 1. Бэкенд тесты
   backend-test:
+    needs: notify-start
     runs-on: ubuntu-latest
     if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
     steps:
@@ -371,6 +387,30 @@ jobs:
           else
             MESSAGE="Этап update-manifests закончился неуспешно. Не удалось обновить теги в Git"
           fi
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -d text="$MESSAGE"
+
+  # 10. Отправка уведомления о завершении пайплайна
+  notify-end:
+    needs: update-manifests
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Send completion notification
+        run: |
+          if [ "${{ needs.update-manifests.result }}" == "success" ]; then
+            STATUS="успешно"
+            MESSAGE="CI/CD Pipeline завершился успешно"
+          else
+            STATUS="с ошибкой"
+            MESSAGE="CI/CD Pipeline завершился с ошибкой"
+          fi
+          MESSAGE="$MESSAGE%0AРепозиторий: ${{ github.repository }}"
+          MESSAGE="$MESSAGE%0AВетка: ${{ github.ref_name }}"
+          MESSAGE="$MESSAGE%0AКоммит: ${{ github.sha }}"
+          MESSAGE="$MESSAGE%0AФронтенд: http://${{ secrets.SSH_HOST }}:30924"
+          MESSAGE="$MESSAGE%0AБэкенд: http://${{ secrets.SSH_HOST }}:8000/data"
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
             -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
             -d text="$MESSAGE"
