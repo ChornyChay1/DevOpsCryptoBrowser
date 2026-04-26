@@ -297,29 +297,36 @@ jobs:
           git add k8s/backend-deployment.yaml k8s/frontend-deployment.yaml
           git diff --staged --quiet || git commit -m "Update images to ${{ github.sha }}"
           git push
-#
-#  # 7. Деплой
-#  deploy:
-#    needs: update-manifests
-#    runs-on: ubuntu-latest
-#    steps:
-#      - uses: actions/checkout@v3
-#      - name: Install Ansible
-#        run: pip install ansible
-#      - name: Setup SSH
-#        uses: webfactory/ssh-agent@v0.9.0
-#        with:
-#          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-#      - name: Configure SSH
-#        run: |
-#          mkdir -p ~/.ssh
-#          ssh-keyscan -p ${{ secrets.SSH_PORT || '22' }} ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
-#      - name: Redeploy
-#        working-directory: ./cloud/ansible_playbooks
-#        run: |
-#          echo "[docker_hosts]" > inventory.ini
-#          echo "vm ansible_host=${{ secrets.SSH_HOST }} ansible_user=${{ secrets.SSH_USER }}" >> inventory.ini
-#          ansible-playbook -i inventory.ini deploy_k8s.yml \
-#            -e "yc_oauth_token=${{ secrets.YC_TOKEN }}" \
-#            -e "version=${{ github.sha }}" \
-#            -e "db_password=${{ secrets.DB_PASSWORD }}"
+  wait-and-restart-ports:
+    name: Wait for Argo CD Sync & Restart Port-Forwarding
+    needs: update-manifests   # Этот job стартует после обновления манифестов
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Argo CD CLI
+        run: |
+          curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          chmod +x argocd
+          sudo mv argocd /usr/local/bin/
+      - name: Wait for Argo CD sync
+        run: |
+          argocd login ${{ secrets.SSH_HOST }}:8443 \
+            --username admin \
+            --password ${{ secrets.ARGOCD_PASSWORD }} \
+            --insecure
+          argocd app wait crypto-app --health --sync --timeout 300 --insecure
+
+          # Ждем, пока приложение crypto-app не синхронизируется и не станет здоровым
+          argocd app wait crypto-app --health --sync --timeout 300 --insecure
+
+      - name: (Re)start kubectl port-forward on VM
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            nohup kubectl port-forward -n crypto-app svc/frontend 30924:80 --address 0.0.0.0 > /tmp/frontend-fwd.log 2>&1 &
+            nohup kubectl port-forward -n crypto-app svc/backend 8000:8000 --address 0.0.0.0 > /tmp/backend-fwd.log 2>&1 &
