@@ -1,0 +1,24 @@
+---
+- name: Порт-форвардинг
+  hosts: docker_hosts
+  become: yes
+  tasks:
+    - name: Остановка старых
+      shell: pkill -f "kubectl port-forward"
+      ignore_errors: yes
+
+    - name: Фронтенд
+      shell: |
+        nohup kubectl port-forward -n crypto-app svc/frontend 30924:80 --address 0.0.0.0 > /tmp/frontend-fwd.log 2>&1 &
+
+    - name: Бэкенд
+      shell: |
+        nohup kubectl port-forward -n crypto-app svc/backend 8000:8000 --address 0.0.0.0 > /tmp/backend-fwd.log 2>&1 &
+
+    - name: Grafana
+      shell: |
+        nohup kubectl port-forward -n monitoring svc/monitoring-grafana 3000:80 --address 0.0.0.0 > /tmp/grafana-fwd.log 2>&1 &
+
+    - name: Argo CD
+      shell: |
+        nohup kubectl port-forward -n argocd svc/argocd-server 8443:443 --address 0.0.0.0 > /tmp/argocd-fwd.log 2>&1 &
