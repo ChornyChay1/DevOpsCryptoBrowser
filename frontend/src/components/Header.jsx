@@ -6,7 +6,7 @@ function Header({ currentPrice }) {
       <header className="header">
         <div className="logo">
             <img src={logo_img} alt="logo" className="logo_img" />
-            CryptoExplorer 22222
+            CryptoExplorer 666
         </div>
         <div className="price">
           BTC/USD <span>${currentPrice ? currentPrice.toFixed(2) : '—'}</span>
