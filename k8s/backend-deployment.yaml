@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
       - name: backend
-        image: cr.yandex/crpkl4pgojohfidok157/crypto-backend:latest
+        image: cr.yandex/crpkl4pgojohfidok157/crypto-backend:27cd05a0a15cb3e912c430d616674808bfd3ff92
         imagePullPolicy: Always
         ports:
         - containerPort: 8000
