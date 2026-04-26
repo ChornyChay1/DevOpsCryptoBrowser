@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: cr.yandex/crpkl4pgojohfidok157/crypto-frontend:ef1761d158a0c85fe38cf6476d3d571c9f97cc58
+        image: cr.yandex/crpkl4pgojohfidok157/crypto-frontend:e2b4f86e22ece0304638627e5bb6cad743c3c4ec
         imagePullPolicy: Always
         ports:
         - containerPort: 3000
