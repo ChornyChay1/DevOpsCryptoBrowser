@@ -1,0 +1,84 @@
+---
+- name: Настройка Kubernetes
+  hosts: docker_hosts
+  become: yes
+  vars:
+    namespace: "crypto-app"
+
+  tasks:
+    - name: Проверка кластера
+      shell: kubectl get nodes
+      become_user: ubuntu
+      become: no
+      register: nodes_status
+      changed_when: false
+
+    # ----- SONARQUBE -----
+    - name: Установка vm.max_map_count для Elasticsearch
+      shell: |
+        sudo sysctl -w vm.max_map_count=524288
+        echo "vm.max_map_count=524288" | sudo tee -a /etc/sysctl.conf
+      become: yes
+
+    - name: Добавление репозитория SonarQube
+      shell: |
+        helm repo add sonarqube https://SonarSource.github.io/helm-chart-sonarqube
+        helm repo update
+      become_user: ubuntu
+      become: no
+
+    - name: Создание namespace для SonarQube
+      shell: kubectl create namespace sonarqube --dry-run=client -o yaml | kubectl apply -f -
+      become_user: ubuntu
+      become: no
+
+    - name: Установка SonarQube через Helm
+      shell: |
+        helm upgrade --install sonarqube sonarqube/sonarqube \
+          --namespace sonarqube \
+          --set community.enabled=true \
+          --set resources.requests.memory=2Gi \
+          --set resources.requests.cpu=500m \
+          --set resources.limits.memory=4Gi \
+          --set resources.limits.cpu=2000m \
+          --set service.type=NodePort \
+          --set service.nodePort=30090 \
+          --set monitoringPasscode=admin123 \
+          --set postgresql.enabled=true \
+          --set postgresql.postgresqlPassword=sonar \
+          --wait \
+          --timeout 10m
+      become_user: ubuntu
+      become: no
+      register: sonarqube_install
+      ignore_errors: yes
+
+    - name: Ожидание готовности SonarQube подов
+      shell: |
+        kubectl wait --for=condition=ready pod -l app=sonarqube -n sonarqube --timeout=300s
+      become_user: ubuntu
+      become: no
+      ignore_errors: yes
+
+    - name: Получение пароля admin SonarQube
+      shell: |
+        kubectl get secret sonarqube-sonarqube -n sonarqube -o jsonpath="{.data.sonarqube-password}" | base64 -d
+      become_user: ubuntu
+      become: no
+      register: sonarqube_password
+      ignore_errors: yes
+
+    - name: Вывод пароля SonarQube
+      debug:
+        msg: |
+          SonarQube установлен
+          URL: http://{{ hostvars[inventory_hostname].ansible_host }}:30090
+          Логин: admin
+          Пароль: {{ sonarqube_password.stdout | default('смотри в секрет sonarqube-sonarqube') }}
+
+    - name: Запуск порт-форвардинга для SonarQube
+      shell: |
+        pkill -f "port-forward.*sonarqube" 2>/dev/null || true
+        nohup kubectl port-forward -n sonarqube svc/sonarqube-sonarqube 9000:9000 --address 0.0.0.0 > /tmp/sonarqube-fwd.log 2>&1 &
+      become_user: ubuntu
+      become: no
