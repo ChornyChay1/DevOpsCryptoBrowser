@@ -299,34 +299,39 @@ jobs:
           git push
   wait-and-restart-ports:
     name: Wait for Argo CD Sync & Restart Port-Forwarding
-    needs: update-manifests   # Этот job стартует после обновления манифестов
+    needs: update-manifests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Wait 120 seconds for Argo CD to detect changes
+        run: sleep 120
 
       - name: Install Argo CD CLI
         run: |
           curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
           chmod +x argocd
           sudo mv argocd /usr/local/bin/
-      - name: Wait for Argo CD sync
+
+      - name: Login to Argo CD
         run: |
           argocd login ${{ secrets.SSH_HOST }}:8443 \
             --username admin \
             --password ${{ secrets.ARGOCD_PASSWORD }} \
             --insecure
+
+      - name: Wait for Argo CD sync and health
+        run: |
           argocd app wait crypto-app --health --sync --timeout 300 --insecure
 
-          # Ждем, пока приложение crypto-app не синхронизируется и не станет здоровым
-          argocd app wait crypto-app --health --sync --timeout 300 --insecure
-
-      - name: (Re)start kubectl port-forward on VM
+      - name: Restart kubectl port-forward on VM
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
+            pkill -f "kubectl port-forward" || true
             nohup kubectl port-forward -n crypto-app svc/frontend 30924:80 --address 0.0.0.0 > /tmp/frontend-fwd.log 2>&1 &
             nohup kubectl port-forward -n crypto-app svc/backend 8000:8000 --address 0.0.0.0 > /tmp/backend-fwd.log 2>&1 &
