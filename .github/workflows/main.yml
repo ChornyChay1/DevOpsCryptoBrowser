@@ -40,6 +40,17 @@ jobs:
           echo "LOG_FILE_MAX_BYTES=10485760" >> .env
           echo "LOG_FILE_BACKUP_COUNT=5" >> .env
           pytest tests/ -v
+      - name: Send Telegram notification
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            MESSAGE="Этап backend-test закончился успешно"
+          else
+            MESSAGE="Этап backend-test закончился неуспешно. Ошибка в тестах бэкенда"
+          fi
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -d text="$MESSAGE"
 
   # 2. Бэкенд билд
   backend-build:
@@ -47,24 +58,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-
       - name: Cache pip
         uses: actions/cache@v3
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt') }}
-
       - name: Backend install
         working-directory: ./backend
         run: |
           pip install -r requirements.txt
           pip install pytest-cov
-
       - name: Generate coverage report
         working-directory: ./backend
         run: |
@@ -80,20 +87,28 @@ jobs:
           echo "LOG_FILE_MAX_BYTES=10485760" >> .env
           echo "LOG_FILE_BACKUP_COUNT=5" >> .env
           pytest --cov=. --cov-report=xml:coverage.xml
-
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
         with:
           name: backend-coverage
           path: backend/coverage.xml
-
       - name: Debug files
         run: |
           echo "=== Current directory ==="
           pwd
           echo "=== List all files ==="
           find . -name "*.py" | head -30
-  
+      - name: Send Telegram notification
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            MESSAGE="Этап backend-build закончился успешно"
+          else
+            MESSAGE="Этап backend-build закончился неуспешно. Ошибка при генерации coverage отчета"
+          fi
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -d text="$MESSAGE"
 
   # 3. Бэкенд SonarQube
   backend-sonar:
@@ -108,7 +123,6 @@ jobs:
         with:
           name: backend-coverage
           path: backend
-
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v5
         env:
@@ -122,16 +136,24 @@ jobs:
             -Dsonar.tests=backend/tests
             -Dsonar.exclusions=**/venv/**,**/__pycache__/**,**/migrations/**,**/tests/**
             -Dsonar.test.inclusions=backend/tests/**/*.py
-
       - name: SonarQube Quality Gate check
         uses: sonarsource/sonarqube-quality-gate-action@v1
         timeout-minutes: 5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      - name: Send Telegram notification
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            MESSAGE="Этап backend-sonar закончился успешно (Quality Gate пройден)"
+          else
+            MESSAGE="Этап backend-sonar закончился неуспешно. Quality Gate не пройден или ошибка сканирования"
+          fi
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -d text="$MESSAGE"
 
-
-
-  # 3. Фронтенд тесты
+  # 4. Фронтенд тесты
   frontend-test:
     needs: backend-sonar
     runs-on: ubuntu-latest
@@ -152,9 +174,19 @@ jobs:
       - name: Frontend test
         working-directory: ./frontend
         run: npm test -- --watchAll=false
+      - name: Send Telegram notification
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            MESSAGE="Этап frontend-test закончился успешно"
+          else
+            MESSAGE="Этап frontend-test закончился неуспешно. Ошибка в тестах фронтенда"
+          fi
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -d text="$MESSAGE"
 
-
-  # 4. Фронтенд билд
+  # 5. Фронтенд билд
   frontend-build:
     needs: frontend-test
     runs-on: ubuntu-latest
@@ -175,9 +207,19 @@ jobs:
       - name: Build
         working-directory: ./frontend
         run: npm run build
+      - name: Send Telegram notification
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            MESSAGE="Этап frontend-build закончился успешно"
+          else
+            MESSAGE="Этап frontend-build закончился неуспешно. Ошибка сборки фронтенда"
+          fi
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -d text="$MESSAGE"
 
-
-  # Фронтенд SonarQube
+  # 6. Фронтенд SonarQube
   frontend-sonar:
     needs: frontend-build
     runs-on: ubuntu-latest
@@ -185,34 +227,28 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
-
       - name: Cache npm
         uses: actions/cache@v3
         with:
           path: ~/.npm
           key: ${{ runner.os }}-node-${{ hashFiles('frontend/package-lock.json') }}
-
       - name: Frontend install
         working-directory: ./frontend
         run: npm install
-
       - name: Generate coverage report
         working-directory: ./frontend
         run: |
           npm test -- --coverage --watchAll=false --coverageReporters=lcov --coverageReporters=json --coverageReporters=text
-
       - name: Debug coverage files
         run: |
           echo "=== Coverage directory ==="
           ls -la frontend/coverage/ || echo "No coverage dir"
           echo "=== Lcov file ==="
           find . -name "lcov.info" | head -5
-
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v5
         env:
@@ -227,14 +263,24 @@ jobs:
             -Dsonar.javascript.lcov.reportPaths=frontend/coverage/lcov.info
             -Dsonar.coverage.exclusions=**/Chart.jsx,**/index.js,**/setupTests.js,**/*.test.jsx,**/*.test.js,**/__tests__/**
             -Dsonar.exclusions=**/node_modules/**,**/build/**,**/coverage/**
-
       - name: SonarQube Quality Gate check
         uses: sonarsource/sonarqube-quality-gate-action@v1
         timeout-minutes: 5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_FRONTEND }}
+      - name: Send Telegram notification
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            MESSAGE="Этап frontend-sonar закончился успешно (Quality Gate пройден)"
+          else
+            MESSAGE="Этап frontend-sonar закончился неуспешно. Quality Gate не пройден или ошибка сканирования"
+          fi
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -d text="$MESSAGE"
 
-  # 5. Бэкенд Docker
+  # 7. Бэкенд Docker
   backend-docker:
     needs: frontend-sonar
     runs-on: ubuntu-latest
@@ -252,8 +298,19 @@ jobs:
           tags: |
             cr.yandex/${{ secrets.YC_REGISTRY_ID }}/crypto-backend:latest
             cr.yandex/${{ secrets.YC_REGISTRY_ID }}/crypto-backend:${{ github.sha }}
+      - name: Send Telegram notification
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            MESSAGE="Этап backend-docker закончился успешно. Образ backend собран и запушен"
+          else
+            MESSAGE="Этап backend-docker закончился неуспешно. Ошибка сборки или пуша образа backend"
+          fi
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -d text="$MESSAGE"
 
-  # 6. Фронтенд Docker
+  # 8. Фронтенд Docker
   frontend-docker:
     needs: backend-docker
     runs-on: ubuntu-latest
@@ -273,7 +330,19 @@ jobs:
           tags: |
             cr.yandex/${{ secrets.YC_REGISTRY_ID }}/crypto-frontend:latest
             cr.yandex/${{ secrets.YC_REGISTRY_ID }}/crypto-frontend:${{ github.sha }}
+      - name: Send Telegram notification
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            MESSAGE="Этап frontend-docker закончился успешно. Образ frontend собран и запушен"
+          else
+            MESSAGE="Этап frontend-docker закончился неуспешно. Ошибка сборки или пуша образа frontend"
+          fi
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -d text="$MESSAGE"
 
+  # 9. Обновление манифестов
   update-manifests:
     needs: frontend-docker
     runs-on: ubuntu-latest
@@ -281,15 +350,12 @@ jobs:
       - uses: actions/checkout@v3
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Update backend image tag
         run: |
           sed -i "s|image: cr.yandex/${{ secrets.YC_REGISTRY_ID }}/crypto-backend:.*|image: cr.yandex/${{ secrets.YC_REGISTRY_ID }}/crypto-backend:${{ github.sha }}|" k8s/backend-deployment.yaml
-
       - name: Update frontend image tag
         run: |
           sed -i "s|image: cr.yandex/${{ secrets.YC_REGISTRY_ID }}/crypto-frontend:.*|image: cr.yandex/${{ secrets.YC_REGISTRY_ID }}/crypto-frontend:${{ github.sha }}|" k8s/frontend-deployment.yaml
-
       - name: Commit and push changes
         run: |
           git config user.name "github-actions[bot]"
@@ -297,3 +363,14 @@ jobs:
           git add k8s/backend-deployment.yaml k8s/frontend-deployment.yaml
           git diff --staged --quiet || git commit -m "Update images to ${{ github.sha }}"
           git push
+      - name: Send Telegram notification
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            MESSAGE="Этап update-manifests закончился успешно. Теги образов обновлены в Git"
+          else
+            MESSAGE="Этап update-manifests закончился неуспешно. Не удалось обновить теги в Git"
+          fi
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -d text="$MESSAGE"
