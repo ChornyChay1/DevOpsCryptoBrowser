@@ -297,29 +297,29 @@ jobs:
           git add k8s/backend-deployment.yaml k8s/frontend-deployment.yaml
           git diff --staged --quiet || git commit -m "Update images to ${{ github.sha }}"
           git push
-
-  # 7. Деплой
-  deploy:
-    needs: update-manifests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Install Ansible
-        run: pip install ansible
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-      - name: Configure SSH
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -p ${{ secrets.SSH_PORT || '22' }} ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
-      - name: Redeploy
-        working-directory: ./cloud/ansible_playbooks
-        run: |
-          echo "[docker_hosts]" > inventory.ini
-          echo "vm ansible_host=${{ secrets.SSH_HOST }} ansible_user=${{ secrets.SSH_USER }}" >> inventory.ini
-          ansible-playbook -i inventory.ini deploy_k8s.yml \
-            -e "yc_oauth_token=${{ secrets.YC_TOKEN }}" \
-            -e "version=${{ github.sha }}" \
-            -e "db_password=${{ secrets.DB_PASSWORD }}"
+#
+#  # 7. Деплой
+#  deploy:
+#    needs: update-manifests
+#    runs-on: ubuntu-latest
+#    steps:
+#      - uses: actions/checkout@v3
+#      - name: Install Ansible
+#        run: pip install ansible
+#      - name: Setup SSH
+#        uses: webfactory/ssh-agent@v0.9.0
+#        with:
+#          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+#      - name: Configure SSH
+#        run: |
+#          mkdir -p ~/.ssh
+#          ssh-keyscan -p ${{ secrets.SSH_PORT || '22' }} ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+#      - name: Redeploy
+#        working-directory: ./cloud/ansible_playbooks
+#        run: |
+#          echo "[docker_hosts]" > inventory.ini
+#          echo "vm ansible_host=${{ secrets.SSH_HOST }} ansible_user=${{ secrets.SSH_USER }}" >> inventory.ini
+#          ansible-playbook -i inventory.ini deploy_k8s.yml \
+#            -e "yc_oauth_token=${{ secrets.YC_TOKEN }}" \
+#            -e "version=${{ github.sha }}" \
+#            -e "db_password=${{ secrets.DB_PASSWORD }}"
