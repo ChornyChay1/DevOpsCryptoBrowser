@@ -68,7 +68,50 @@ jobs:
             -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
             -d text="$MESSAGE"
 
-  # 2. Бэкенд билд
+  # 2. Бэкенд SonarQube
+  backend-sonar:
+    needs: backend-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Download coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: http://${{ secrets.SSH_HOST }}:9000
+        with:
+          args: >
+            -Dsonar.projectKey=crypto-backend
+            -Dsonar.python.coverage.reportPaths=backend/coverage.xml
+            -Dsonar.sources=backend
+            -Dsonar.tests=backend/tests
+            -Dsonar.exclusions=**/venv/**,**/__pycache__/**,**/migrations/**,**/tests/**
+            -Dsonar.test.inclusions=backend/tests/**/*.py
+      - name: SonarQube Quality Gate check
+        uses: sonarsource/sonarqube-quality-gate-action@v1
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      - name: Send Telegram notification
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            MESSAGE="Этап backend-sonar закончился успешно (Quality Gate пройден)"
+          else
+            MESSAGE="Этап backend-sonar закончился неуспешно. Quality Gate не пройден или ошибка сканирования"
+          fi
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -d text="$MESSAGE"
+
+  # 3. Бэкенд билд
   backend-build:
     needs: backend-test
     runs-on: ubuntu-latest
@@ -126,49 +169,6 @@ jobs:
             -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
             -d text="$MESSAGE"
 
-  # 3. Бэкенд SonarQube
-  backend-sonar:
-    needs: backend-build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-      - name: Download coverage report
-        uses: actions/download-artifact@v4
-        with:
-          name: backend-coverage
-          path: backend
-      - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@v5
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: http://${{ secrets.SSH_HOST }}:9000
-        with:
-          args: >
-            -Dsonar.projectKey=crypto-backend
-            -Dsonar.python.coverage.reportPaths=backend/coverage.xml
-            -Dsonar.sources=backend
-            -Dsonar.tests=backend/tests
-            -Dsonar.exclusions=**/venv/**,**/__pycache__/**,**/migrations/**,**/tests/**
-            -Dsonar.test.inclusions=backend/tests/**/*.py
-      - name: SonarQube Quality Gate check
-        uses: sonarsource/sonarqube-quality-gate-action@v1
-        timeout-minutes: 5
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      - name: Send Telegram notification
-        if: always()
-        run: |
-          if [ "${{ job.status }}" == "success" ]; then
-            MESSAGE="Этап backend-sonar закончился успешно (Quality Gate пройден)"
-          else
-            MESSAGE="Этап backend-sonar закончился неуспешно. Quality Gate не пройден или ошибка сканирования"
-          fi
-          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
-            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
-            -d text="$MESSAGE"
-
   # 4. Фронтенд тесты
   frontend-test:
     needs: backend-sonar
@@ -202,40 +202,7 @@ jobs:
             -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
             -d text="$MESSAGE"
 
-  # 5. Фронтенд билд
-  frontend-build:
-    needs: frontend-test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-      - name: Cache npm
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-node-${{ hashFiles('frontend/package-lock.json') }}
-      - name: Frontend install
-        working-directory: ./frontend
-        run: npm install
-      - name: Build
-        working-directory: ./frontend
-        run: npm run build
-      - name: Send Telegram notification
-        if: always()
-        run: |
-          if [ "${{ job.status }}" == "success" ]; then
-            MESSAGE="Этап frontend-build закончился успешно"
-          else
-            MESSAGE="Этап frontend-build закончился неуспешно. Ошибка сборки фронтенда"
-          fi
-          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
-            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
-            -d text="$MESSAGE"
-
-  # 6. Фронтенд SonarQube
+  # 5. Фронтенд SonarQube
   frontend-sonar:
     needs: frontend-build
     runs-on: ubuntu-latest
@@ -291,6 +258,39 @@ jobs:
             MESSAGE="Этап frontend-sonar закончился успешно (Quality Gate пройден)"
           else
             MESSAGE="Этап frontend-sonar закончился неуспешно. Quality Gate не пройден или ошибка сканирования"
+          fi
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -d text="$MESSAGE"
+
+  # 6. Фронтенд билд
+  frontend-build:
+    needs: frontend-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      - name: Cache npm
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('frontend/package-lock.json') }}
+      - name: Frontend install
+        working-directory: ./frontend
+        run: npm install
+      - name: Build
+        working-directory: ./frontend
+        run: npm run build
+      - name: Send Telegram notification
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            MESSAGE="Этап frontend-build закончился успешно"
+          else
+            MESSAGE="Этап frontend-build закончился неуспешно. Ошибка сборки фронтенда"
           fi
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
             -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
